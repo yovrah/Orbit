@@ -221,304 +221,426 @@ export default function App() {
           </motion.button>
         </div>
 
-        {/* 2. TABS SELECTOR */}
-        <div className="flex items-center justify-between bg-black/5 dark:bg-white/5 p-1 rounded-2xl mt-5">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className="relative flex-1 py-2 text-xs font-medium rounded-xl transition-all duration-300"
-            >
-              {activeTab === tab.id && (
-                <motion.div
-                  layoutId="activeTabIndicator"
-                  className="absolute inset-0 bg-black dark:bg-white rounded-xl shadow-sm"
-                  transition={springTransition}
-                />
-              )}
-              <span className={`relative z-10 transition-colors duration-300 ${
-                activeTab === tab.id 
-                  ? 'text-white dark:text-black font-semibold' 
-                  : 'text-[#86868b] hover:text-[var(--text-primary)]'
-              }`}>
-                {tab.label}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* 3. DYNAMIC CONTENT AREA */}
-        <div className="flex-1 flex flex-col justify-center my-6">
-          <AnimatePresence mode="wait">
-            {activeTab === 'remote' && (
-              <motion.div 
-                key="remote"
-                ref={touchpadRef}
-                className={`w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative overflow-hidden dotted-grid flex flex-col items-center justify-center ${
-                  activeDevice && isAuthorized ? 'cursor-none active:scale-[0.99] transition-transform duration-150' : 'opacity-60 pointer-events-none'
-                }`}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={springTransition}
-              >
-                <motion.button 
-                  className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
-                  {...buttonPress}
+        {activeNav === 'apps' && (
+          <>
+            {/* 2. TABS SELECTOR */}
+            <div className="flex items-center justify-between bg-black/5 dark:bg-white/5 p-1 rounded-2xl mt-5">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className="relative flex-1 py-2 text-xs font-medium rounded-xl transition-all duration-300"
                 >
-                  <Maximize2 size={15} />
-                </motion.button>
-
-                <div className="text-center pointer-events-none">
-                  <p className="text-sm font-medium text-[#86868b] tracking-wide max-w-[200px]">
-                    {activeDevice 
-                      ? (isAuthorized ? 'Проведите для движения мыши' : 'Авторизация...') 
-                      : 'Требуется сопряжение с PC'}
-                  </p>
-                </div>
-
-                <motion.button 
-                  className="absolute bottom-4 left-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
-                  {...buttonPress}
-                >
-                  <MousePointer size={15} />
-                </motion.button>
-
-                <motion.button 
-                  className="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
-                  {...buttonPress}
-                >
-                  <Keyboard size={15} />
-                </motion.button>
-              </motion.div>
-            )}
-
-            {activeTab === 'screen' && (
-              <motion.div 
-                key="screen"
-                className="w-full aspect-[1.1] glass-card rounded-[36px] overflow-hidden relative flex flex-col items-center justify-center"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={springTransition}
-              >
-                {activeDevice && isAuthorized ? (
-                  <img
-                    src={`${activeDevice.ipAddress}/api/v1/screen/stream`}
-                    alt="Screen Stream"
-                    className="w-full h-full object-contain cursor-crosshair select-none"
-                    onTouchStart={handleScreenTouchStart}
-                    onTouchMove={handleScreenTouchMove}
-                    onTouchEnd={handleScreenTouchEnd}
-                    onMouseDown={handleScreenMouseDown}
-                    onContextMenu={(e) => e.preventDefault()}
-                  />
-                ) : (
-                  <div className="text-center pointer-events-none">
-                    <p className="text-sm font-medium text-[#86868b]">Нет подключения</p>
-                  </div>
-                )}
-              </motion.div>
-            )}
-
-            {activeTab === 'keyboard' && (
-              <motion.div 
-                key="keyboard"
-                className="w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative flex flex-col justify-between"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={springTransition}
-              >
-                <div className="flex-1 flex flex-col gap-3">
-                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Ввод текста</h3>
-                  <input
-                    type="text"
-                    placeholder="Нажмите для ввода текста..."
-                    className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-[var(--text-primary)]"
-                    onKeyDown={(e) => {
-                      e.preventDefault();
-                      const key = e.key;
-                      sendEvent({
-                        event: 'keyboard_input',
-                        key: key,
-                        type: 'press',
-                        modifiers: {
-                          ctrl: e.ctrlKey,
-                          alt: e.altKey,
-                          shift: e.shiftKey,
-                          win: e.metaKey
-                        }
-                      });
-                      e.currentTarget.value = '';
-                    }}
-                  />
-                  <p className="text-[11px] text-[#86868b] leading-relaxed">
-                    Клавиатурный ввод отправляется на ПК в реальном времени. Работают все клавиши, включая Backspace, стрелочки и Enter.
-                  </p>
-                </div>
-                <div className="grid grid-cols-4 gap-2 mt-4">
-                  {[
-                    { label: 'Esc', key: 'esc' },
-                    { label: '⌫', key: 'backspace' },
-                    { label: '⏎ Enter', key: 'enter' },
-                    { label: 'Space', key: 'space' },
-                  ].map((btn) => (
-                    <button
-                      key={btn.key}
-                      onClick={() => sendEvent({ event: 'keyboard_input', key: btn.key, type: 'press' })}
-                      className="py-2.5 rounded-xl bg-black/5 dark:bg-white/5 active:bg-black/10 dark:active:bg-white/10 text-xs font-semibold text-[var(--text-primary)]"
-                    >
-                      {btn.label}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === 'media' && (
-              <motion.div 
-                key="media"
-                className="w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative flex flex-col justify-between"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={springTransition}
-              >
-                <div className="flex-1 flex flex-col justify-center gap-6">
-                  <div className="text-center">
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Громкость</h3>
-                    <p className="text-xs text-[#86868b] mt-1">Регулировка звука на ПК</p>
-                  </div>
-                  
-                  <div className="flex items-center gap-4 px-2">
-                    <Sliders size={18} className="text-[#86868b]" />
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      defaultValue="50"
-                      onChange={(e) => {
-                        sendEvent({
-                          event: 'volume_set',
-                          level: parseInt(e.target.value)
-                        });
-                      }}
-                      className="flex-1 h-1.5 bg-black/10 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  {activeTab === tab.id && (
+                    <motion.div
+                      layoutId="activeTabIndicator"
+                      className="absolute inset-0 bg-black dark:bg-white rounded-xl shadow-sm"
+                      transition={springTransition}
                     />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: '⏮ Назад', key: 'left' },
-                    { label: '⏯ Пауза', key: 'space' },
-                    { label: '⏭ Вперед', key: 'right' }
-                  ].map((btn) => (
-                    <button
-                      key={btn.key}
-                      onClick={() => sendEvent({ event: 'keyboard_input', key: btn.key, type: 'press' })}
-                      className="py-3 rounded-xl bg-black/5 dark:bg-white/5 active:bg-black/10 dark:active:bg-white/10 text-xs font-semibold text-[var(--text-primary)]"
+                  )}
+                  <span className={`relative z-10 transition-colors duration-300 ${
+                    activeTab === tab.id 
+                      ? 'text-white dark:text-black font-semibold' 
+                      : 'text-[#86868b] hover:text-[var(--text-primary)]'
+                  }`}>
+                    {tab.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* 3. DYNAMIC CONTENT AREA */}
+            <div className="flex-1 flex flex-col justify-center my-6">
+              <AnimatePresence mode="wait">
+                {activeTab === 'remote' && (
+                  <motion.div 
+                    key="remote"
+                    ref={touchpadRef}
+                    className={`w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative overflow-hidden dotted-grid flex flex-col items-center justify-center ${
+                      activeDevice && isAuthorized ? 'cursor-none active:scale-[0.99] transition-transform duration-150' : 'opacity-60 pointer-events-none'
+                    }`}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={springTransition}
+                  >
+                    <motion.button 
+                      className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
+                      {...buttonPress}
                     >
-                      {btn.label}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                      <Maximize2 size={15} />
+                    </motion.button>
 
-        {/* 4. MOUSE BUTTONS */}
-        <div className="grid grid-cols-3 gap-3 mb-5">
-          <motion.button 
-            className="glass-card rounded-[22px] py-4 flex flex-col items-center justify-center gap-1.5"
-            onClick={() => sendEvent({ event: 'mouse_click', button: 'left', type: 'click' })}
-            {...buttonPress}
-          >
-            <MousePointer size={18} className="text-[#1d1d1f] dark:text-white" />
-            <span className="text-[11px] font-semibold text-[#86868b]">Левая</span>
-          </motion.button>
-          
-          <motion.button 
-            className="glass-card rounded-[22px] py-4 flex flex-col items-center justify-center gap-1.5"
-            onClick={() => sendEvent({ event: 'mouse_click', button: 'middle', type: 'click' })}
-            {...buttonPress}
-          >
-            <Sliders size={18} className="text-[#1d1d1f] dark:text-white" />
-            <span className="text-[11px] font-semibold text-[#86868b]">Колесико</span>
-          </motion.button>
+                    <div className="text-center pointer-events-none">
+                      <p className="text-sm font-medium text-[#86868b] tracking-wide max-w-[200px]">
+                        {activeDevice 
+                          ? (isAuthorized ? 'Проведите для движения мыши' : 'Авторизация...') 
+                          : 'Требуется сопряжение с PC'}
+                      </p>
+                    </div>
 
-          <motion.button 
-            className="glass-card rounded-[22px] py-4 flex flex-col items-center justify-center gap-1.5"
-            onClick={() => sendEvent({ event: 'mouse_click', button: 'right', type: 'click' })}
-            {...buttonPress}
-          >
-            <MousePointer size={18} className="text-[#1d1d1f] dark:text-white scale-x-[-1]" />
-            <span className="text-[11px] font-semibold text-[#86868b]">Правая</span>
-          </motion.button>
-        </div>
+                    <motion.button 
+                      className="absolute bottom-4 left-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
+                      {...buttonPress}
+                    >
+                      <MousePointer size={15} />
+                    </motion.button>
 
-        {/* 5. POWER SYSTEM CONTROLS */}
-        <div className="grid grid-cols-4 gap-3 mb-5">
-          {[
-            { label: 'Выключить', icon: Power, color: 'text-[#ff3b30] bg-[#ff3b30]/10', action: () => sendEvent({ event: 'system_cmd', cmd: 'shutdown' }) },
-            { label: 'Сон', icon: Moon, color: 'text-[#af52de] bg-[#af52de]/10', action: () => sendEvent({ event: 'system_cmd', cmd: 'sleep' }) },
-            { label: 'Перезагрузка', icon: RotateCw, color: 'text-[#34c759] bg-[#34c759]/10', action: () => sendEvent({ event: 'system_cmd', cmd: 'restart' }) },
-            { label: 'Рабочий стол', icon: Tv, color: 'text-[#0071e3] bg-[#0071e3]/10', action: () => sendEvent({ event: 'system_cmd', cmd: 'desktop' }) }
-          ].map((action, idx) => (
-            <motion.button 
-              key={idx}
-              className="glass-card rounded-[22px] p-3 flex flex-col items-center justify-center gap-2 aspect-square"
-              onClick={action.action}
+                    <motion.button 
+                      className="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
+                      {...buttonPress}
+                    >
+                      <Keyboard size={15} />
+                    </motion.button>
+                  </motion.div>
+                )}
+
+                {activeTab === 'screen' && (
+                  <motion.div 
+                    key="screen"
+                    className="w-full aspect-[1.1] glass-card rounded-[36px] overflow-hidden relative flex flex-col items-center justify-center"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={springTransition}
+                  >
+                    {activeDevice && isAuthorized ? (
+                      <img
+                        src={`${activeDevice.ipAddress}/api/v1/screen/stream`}
+                        alt="Screen Stream"
+                        className="w-full h-full object-contain cursor-crosshair select-none"
+                        onTouchStart={handleScreenTouchStart}
+                        onTouchMove={handleScreenTouchMove}
+                        onTouchEnd={handleScreenTouchEnd}
+                        onMouseDown={handleScreenMouseDown}
+                        onContextMenu={(e) => e.preventDefault()}
+                      />
+                    ) : (
+                      <div className="text-center pointer-events-none">
+                        <p className="text-sm font-medium text-[#86868b]">Нет подключения</p>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {activeTab === 'keyboard' && (
+                  <motion.div 
+                    key="keyboard"
+                    className="w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative flex flex-col justify-between"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={springTransition}
+                  >
+                    <div className="flex-1 flex flex-col gap-3">
+                      <h3 className="text-sm font-semibold text-[var(--text-primary)]">Ввод текста</h3>
+                      <input
+                        type="text"
+                        placeholder="Нажмите для ввода текста..."
+                        className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-[var(--text-primary)]"
+                        onKeyDown={(e) => {
+                          e.preventDefault();
+                          const key = e.key;
+                          sendEvent({
+                            event: 'keyboard_input',
+                            key: key,
+                            type: 'press',
+                            modifiers: {
+                              ctrl: e.ctrlKey,
+                              alt: e.altKey,
+                              shift: e.shiftKey,
+                              win: e.metaKey
+                            }
+                          });
+                          e.currentTarget.value = '';
+                        }}
+                      />
+                      <p className="text-[11px] text-[#86868b] leading-relaxed">
+                        Клавиатурный ввод отправляется на ПК в реальном времени. Работают все клавиши, включая Backspace, стрелочки и Enter.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 mt-4">
+                      {[
+                        { label: 'Esc', key: 'esc' },
+                        { label: '⌫', key: 'backspace' },
+                        { label: '⏎ Enter', key: 'enter' },
+                        { label: 'Space', key: 'space' },
+                      ].map((btn) => (
+                        <button
+                          key={btn.key}
+                          onClick={() => sendEvent({ event: 'keyboard_input', key: btn.key, type: 'press' })}
+                          className="py-2.5 rounded-xl bg-black/5 dark:bg-white/5 active:bg-black/10 dark:active:bg-white/10 text-xs font-semibold text-[var(--text-primary)]"
+                        >
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                {activeTab === 'media' && (
+                  <motion.div 
+                    key="media"
+                    className="w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative flex flex-col justify-between"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={springTransition}
+                  >
+                    <div className="flex-1 flex flex-col justify-center gap-6">
+                      <div className="text-center">
+                        <h3 className="text-sm font-semibold text-[var(--text-primary)]">Громкость</h3>
+                        <p className="text-xs text-[#86868b] mt-1">Регулировка звука на ПК</p>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 px-2">
+                        <Sliders size={18} className="text-[#86868b]" />
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          defaultValue="50"
+                          onChange={(e) => {
+                            sendEvent({
+                              event: 'volume_set',
+                              level: parseInt(e.target.value)
+                            });
+                          }}
+                          className="flex-1 h-1.5 bg-black/10 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { label: '⏮ Назад', key: 'left' },
+                        { label: '⏯ Пауза', key: 'space' },
+                        { label: '⏭ Вперед', key: 'right' }
+                      ].map((btn) => (
+                        <button
+                          key={btn.key}
+                          onClick={() => sendEvent({ event: 'keyboard_input', key: btn.key, type: 'press' })}
+                          className="py-3 rounded-xl bg-black/5 dark:bg-white/5 active:bg-black/10 dark:active:bg-white/10 text-xs font-semibold text-[var(--text-primary)]"
+                        >
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* 4. MOUSE BUTTONS */}
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              <motion.button 
+                className="glass-card rounded-[22px] py-4 flex flex-col items-center justify-center gap-1.5"
+                onClick={() => sendEvent({ event: 'mouse_click', button: 'left', type: 'click' })}
+                {...buttonPress}
+              >
+                <MousePointer size={18} className="text-[#1d1d1f] dark:text-white" />
+                <span className="text-[11px] font-semibold text-[#86868b]">Левая</span>
+              </motion.button>
+              
+              <motion.button 
+                className="glass-card rounded-[22px] py-4 flex flex-col items-center justify-center gap-1.5"
+                onClick={() => sendEvent({ event: 'mouse_click', button: 'middle', type: 'click' })}
+                {...buttonPress}
+              >
+                <Sliders size={18} className="text-[#1d1d1f] dark:text-white" />
+                <span className="text-[11px] font-semibold text-[#86868b]">Колесико</span>
+              </motion.button>
+
+              <motion.button 
+                className="glass-card rounded-[22px] py-4 flex flex-col items-center justify-center gap-1.5"
+                onClick={() => sendEvent({ event: 'mouse_click', button: 'right', type: 'click' })}
+                {...buttonPress}
+              >
+                <MousePointer size={18} className="text-[#1d1d1f] dark:text-white scale-x-[-1]" />
+                <span className="text-[11px] font-semibold text-[#86868b]">Правая</span>
+              </motion.button>
+            </div>
+
+            {/* 5. POWER SYSTEM CONTROLS */}
+            <div className="grid grid-cols-4 gap-3 mb-5">
+              {[
+                { label: 'Выключить', icon: Power, color: 'text-[#ff3b30] bg-[#ff3b30]/10', action: () => sendEvent({ event: 'system_cmd', cmd: 'shutdown' }) },
+                { label: 'Сон', icon: Moon, color: 'text-[#af52de] bg-[#af52de]/10', action: () => sendEvent({ event: 'system_cmd', cmd: 'sleep' }) },
+                { label: 'Перезагрузка', icon: RotateCw, color: 'text-[#34c759] bg-[#34c759]/10', action: () => sendEvent({ event: 'system_cmd', cmd: 'restart' }) },
+                { label: 'Рабочий стол', icon: Tv, color: 'text-[#0071e3] bg-[#0071e3]/10', action: () => sendEvent({ event: 'system_cmd', cmd: 'desktop' }) }
+              ].map((action, idx) => (
+                <motion.button 
+                  key={idx}
+                  className="glass-card rounded-[22px] p-3 flex flex-col items-center justify-center gap-2 aspect-square"
+                  onClick={action.action}
+                  {...buttonPress}
+                >
+                  <div className={`p-2.5 rounded-full ${action.color}`}>
+                    <action.icon size={16} strokeWidth={2.5} />
+                  </div>
+                  <span className="text-[10px] font-semibold text-[var(--text-primary)] truncate w-full text-center">
+                    {action.label}
+                  </span>
+                </motion.button>
+              ))}
+            </div>
+
+            {/* 6. CONNECTED HOST SUMMARY CARD */}
+            <motion.div 
+              className="glass-card rounded-[26px] p-4 flex items-center justify-between mb-6 cursor-pointer hover:border-apple-blue/20 transition-colors"
+              onClick={() => setShowPairing(true)}
               {...buttonPress}
             >
-              <div className={`p-2.5 rounded-full ${action.color}`}>
-                <action.icon size={16} strokeWidth={2.5} />
-              </div>
-              <span className="text-[10px] font-semibold text-[var(--text-primary)] truncate w-full text-center">
-                {action.label}
-              </span>
-            </motion.button>
-          ))}
-        </div>
+              {activeDevice ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-10 rounded-lg bg-black flex items-center justify-center text-white relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-t from-blue-600/20 to-transparent"></div>
+                    <div className="grid grid-cols-2 gap-0.5 w-4 h-4 opacity-80">
+                      <div className="bg-white/90 w-1.5 h-1.5"></div>
+                      <div className="bg-white/90 w-1.5 h-1.5"></div>
+                      <div className="bg-white/90 w-1.5 h-1.5"></div>
+                      <div className="bg-white/90 w-1.5 h-1.5"></div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-[var(--text-primary)]">{activeDevice.name}</h3>
+                    <p className="text-[11px] text-[#86868b] font-medium">{activeDevice.osName}</p>
+                    <p className="text-[10px] text-[#86868b] font-mono mt-0.5">{activeDevice.ipAddress}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 py-1">
+                  <div className="w-10 h-10 rounded-xl bg-apple-blue/10 text-apple-blue flex items-center justify-center">
+                    <Plus size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-[var(--text-primary)]">Добавить компьютер</h3>
+                    <p className="text-[11px] text-[#86868b]">Нажмите, чтобы выполнить сопряжение</p>
+                  </div>
+                </div>
+              )}
+              <ChevronRight size={18} className="text-[#86868b]" />
+            </motion.div>
+          </>
+        )}
 
-        {/* 6. CONNECTED HOST SUMMARY CARD */}
-        <motion.div 
-          className="glass-card rounded-[26px] p-4 flex items-center justify-between mb-6 cursor-pointer hover:border-apple-blue/20 transition-colors"
-          onClick={() => setShowPairing(true)}
-          {...buttonPress}
-        >
-          {activeDevice ? (
-            <div className="flex items-center gap-3">
-              <div className="w-14 h-10 rounded-lg bg-black flex items-center justify-center text-white relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-t from-blue-600/20 to-transparent"></div>
-                <div className="grid grid-cols-2 gap-0.5 w-4 h-4 opacity-80">
-                  <div className="bg-white/90 w-1.5 h-1.5"></div>
-                  <div className="bg-white/90 w-1.5 h-1.5"></div>
-                  <div className="bg-white/90 w-1.5 h-1.5"></div>
-                  <div className="bg-white/90 w-1.5 h-1.5"></div>
+        {activeNav === 'history' && (
+          <motion.div 
+            key="history-panel"
+            className="flex-1 flex flex-col my-4 overflow-y-auto pr-1"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={springTransition}
+          >
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-4">История подключений</h2>
+            <div className="glass-card rounded-2xl p-6 text-center">
+              <Clock size={36} className="text-[#86868b] mx-auto mb-3 opacity-60" />
+              <p className="text-sm font-semibold text-[var(--text-primary)]">История пуста</p>
+              <p className="text-xs text-[#86868b] mt-1">Здесь будут отображаться сессии вашего пульта.</p>
+            </div>
+          </motion.div>
+        )}
+
+        {activeNav === 'settings' && (
+          <motion.div 
+            key="settings-panel"
+            className="flex-1 flex flex-col my-4 overflow-y-auto pr-1 scrollbar-thin"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={springTransition}
+          >
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-4">Настройки</h2>
+            
+            <div className="flex flex-col gap-4">
+              {activeDevice && (
+                <div className="glass-card rounded-2xl p-4 flex flex-col gap-2">
+                  <h3 className="text-[11px] font-semibold text-[#86868b] uppercase tracking-wider">Текущий ПК</h3>
+                  <div className="flex justify-between items-center text-xs mt-1">
+                    <span className="text-[#86868b]">Имя:</span>
+                    <span className="font-semibold text-[var(--text-primary)]">{activeDevice.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-[#86868b]">IP-адрес:</span>
+                    <span className="font-mono text-[var(--text-primary)]">{activeDevice.ipAddress}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-[#86868b]">MAC-адрес:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[var(--text-primary)]">{activeDevice.macAddress}</span>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(activeDevice.macAddress);
+                          alert('MAC-адрес скопирован в буфер обмена!');
+                        }}
+                        className="text-[10px] bg-white/20 dark:bg-white/10 hover:bg-white/30 text-[var(--text-primary)] px-2 py-0.5 rounded font-semibold transition-colors"
+                      >
+                        Копировать
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div className="glass-card rounded-2xl p-4 flex flex-col gap-3">
+                <h3 className="text-[11px] font-semibold text-[#86868b] uppercase tracking-wider">Команда Siri / Wake-on-LAN</h3>
+                <p className="text-xs text-[var(--text-primary)] leading-relaxed">
+                  Вы можете настроить Siri на вашем iPhone, чтобы включать ПК голосом или через виджет.
+                </p>
+                
+                <div className="flex flex-col gap-2 mt-1">
+                  <h4 className="text-[11px] font-bold text-[var(--text-primary)]">Способ 1: Утилита Wolow (Рекомендуется)</h4>
+                  <p className="text-[10px] text-[#86868b] leading-normal">
+                    1. Скачайте бесплатное приложение <b>Wolow</b> из App Store.<br/>
+                    2. Добавьте ваш ПК, вставив скопированный выше MAC-адрес.<br/>
+                    3. В системном приложении «Быстрые команды» iOS создайте команду, добавив действие <b>Wolow ➡️ Wake Device</b>.<br/>
+                    4. Назовите команду «Включи компьютер» для активации голосом.
+                  </p>
+                </div>
+                
+                <div className="border-t border-black/10 dark:border-white/10 my-1"></div>
+                
+                <div className="flex flex-col gap-2">
+                  <h4 className="text-[11px] font-bold text-[var(--text-primary)]">Способ 2: Веб-запрос (для внешних серверов)</h4>
+                  <p className="text-[10px] text-[#86868b] leading-normal">
+                    Если у вас есть постоянно включенное устройство в сети (сервер), вы можете сделать быструю команду <b>Получить содержимое URL (POST)</b>:
+                  </p>
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value={activeDevice ? `${activeDevice.ipAddress}/api/v1/system/wol` : ''} 
+                    className="w-full text-[10px] bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-2 font-mono text-[var(--text-primary)] focus:outline-none"
+                    onClick={(e) => {
+                      e.currentTarget.select();
+                      navigator.clipboard.writeText(e.currentTarget.value);
+                      alert('Ссылка на WoL API скопирована!');
+                    }}
+                  />
+                  <p className="text-[9px] text-[#86868b]">
+                    Тело запроса (JSON): <code>{"{"}"mac_address": "{activeDevice?.macAddress || 'MAC'}"{"}"}</code>
+                  </p>
                 </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">{activeDevice.name}</h3>
-                <p className="text-[11px] text-[#86868b] font-medium">{activeDevice.osName}</p>
-                <p className="text-[10px] text-[#86868b] font-mono mt-0.5">{activeDevice.ipAddress}</p>
+              
+              <div className="glass-card rounded-2xl p-4 flex justify-between items-center mb-2">
+                <div>
+                  <h3 className="text-[11px] font-semibold text-[#86868b] uppercase tracking-wider">Привязка</h3>
+                  <p className="text-xs text-[#86868b]">Удалить текущий ПК</p>
+                </div>
+                <button 
+                  onClick={async () => {
+                    if (confirm('Удалить сопряженное устройство? Вы будете автоматически перенаправлены на экран сопряжения.')) {
+                      await db.devices.clear();
+                      window.location.reload();
+                    }
+                  }}
+                  className="bg-red-500/10 hover:bg-red-500/20 text-red-500 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors"
+                >
+                  Сбросить
+                </button>
               </div>
             </div>
-          ) : (
-            <div className="flex items-center gap-3 py-1">
-              <div className="w-10 h-10 rounded-xl bg-apple-blue/10 text-apple-blue flex items-center justify-center">
-                <Plus size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-[var(--text-primary)]">Добавить компьютер</h3>
-                <p className="text-[11px] text-[#86868b]">Нажмите, чтобы выполнить сопряжение</p>
-              </div>
-            </div>
-          )}
-          <ChevronRight size={18} className="text-[#86868b]" />
-        </motion.div>
+          </motion.div>
+        )}
 
         {/* 7. BOTTOM TAB NAVIGATION BAR */}
         <div className="glass-card rounded-[28px] p-2 flex items-center justify-between">
