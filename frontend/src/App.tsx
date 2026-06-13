@@ -584,25 +584,39 @@ export default function App() {
               <div className="glass-card rounded-2xl p-4 flex flex-col gap-3">
                 <h3 className="text-[11px] font-semibold text-[#86868b] uppercase tracking-wider">Команда Siri / Wake-on-LAN</h3>
                 <p className="text-xs text-[var(--text-primary)] leading-relaxed">
-                  Вы можете настроить Siri на вашем iPhone, чтобы включать ПК голосом или через виджет.
+                  Вы можете включать ПК голосом через Siri без сторонних программ, используя стандартное приложение «Быстрые команды» iOS.
                 </p>
                 
                 <div className="flex flex-col gap-2 mt-1">
-                  <h4 className="text-[11px] font-bold text-[var(--text-primary)]">Способ 1: Утилита Wolow (Рекомендуется)</h4>
+                  <h4 className="text-[11px] font-bold text-[var(--text-primary)]">Способ 1: Роутер по SSH (Без сторонних программ)</h4>
                   <p className="text-[10px] text-[#86868b] leading-normal">
-                    1. Скачайте бесплатное приложение <b>Wolow</b> из App Store.<br/>
-                    2. Добавьте ваш ПК, вставив скопированный выше MAC-адрес.<br/>
-                    3. В системном приложении «Быстрые команды» iOS создайте команду, добавив действие <b>Wolow ➡️ Wake Device</b>.<br/>
-                    4. Назовите команду «Включи компьютер» для активации голосом.
+                    1. Включите SSH-доступ в настройках вашего роутера (Keenetic, ASUS, OpenWrt и др.).<br/>
+                    2. В iOS-приложении «Быстрые команды» добавьте действие <b>«Запустить скрипт по SSH»</b>.<br/>
+                    3. Укажите IP-адрес роутера (обычно <code>192.168.1.1</code>) и данные авторизации роутера.<br/>
+                    4. Вставьте команду пробуждения вашего ПК:
+                  </p>
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value={activeDevice ? `ether-wake ${activeDevice.macAddress}` : 'ether-wake MAC_ADDRESS'} 
+                    className="w-full text-[10px] bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg p-2 font-mono text-[var(--text-primary)] focus:outline-none"
+                    onClick={(e) => {
+                      e.currentTarget.select();
+                      navigator.clipboard.writeText(e.currentTarget.value);
+                      alert('Команда SSH скопирована!');
+                    }}
+                  />
+                  <p className="text-[9px] text-[#86868b] leading-normal mt-0.5">
+                    *Для роутеров Keenetic используйте: <code>ip hotspot wake {activeDevice?.macAddress || 'MAC'}</code> или <code>wol wake {activeDevice?.macAddress || 'MAC'}</code>.
                   </p>
                 </div>
                 
                 <div className="border-t border-black/10 dark:border-white/10 my-1"></div>
                 
                 <div className="flex flex-col gap-2">
-                  <h4 className="text-[11px] font-bold text-[var(--text-primary)]">Способ 2: Веб-запрос (для внешних серверов)</h4>
+                  <h4 className="text-[11px] font-bold text-[var(--text-primary)]">Способ 2: Веб-запрос (для умного дома или серверов)</h4>
                   <p className="text-[10px] text-[#86868b] leading-normal">
-                    Если у вас есть постоянно включенное устройство в сети (сервер), вы можете сделать быструю команду <b>Получить содержимое URL (POST)</b>:
+                    Если у вас настроена розетка умного дома или есть сторонний сервер, отправьте POST-запрос на:
                   </p>
                   <input 
                     type="text" 
