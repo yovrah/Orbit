@@ -8,10 +8,14 @@ import json
 import subprocess
 import os
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
+from PIL import ImageGrab, Image
+import io
+import ctypes
 
 from db.database import init_db
 from db import models
@@ -212,6 +216,40 @@ def launch_app(req: AppLaunchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def gen_screen_frames():
+    while True:
+        try:
+            img = ImageGrab.grab()
+            max_width = 1024
+            if img.width > max_width:
+                height = int((max_width / img.width) * img.height)
+                img = img.resize((max_width, height), Image.Resampling.BILINEAR)
+            
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=50)
+            frame = buf.getvalue()
+            
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        except Exception as e:
+            try:
+                placeholder = Image.new('RGB', (640, 360), color=(10, 10, 12))
+                buf = io.BytesIO()
+                placeholder.save(buf, format="JPEG", quality=30)
+                frame = buf.getvalue()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            except:
+                pass
+        time.sleep(0.066)
+
+@app.get("/api/v1/screen/stream")
+def screen_stream():
+    return StreamingResponse(
+        gen_screen_frames(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
 @app.websocket("/ws/control")
 async def websocket_control(websocket: WebSocket):
     await websocket.accept()
@@ -278,6 +316,11 @@ async def websocket_control(websocket: WebSocket):
                 dy = packet.get("dy", 0)
                 accel = packet.get("accel", True)
                 input_emulator.move_mouse(dx, dy, accel)
+                
+            elif event == "mouse_absolute":
+                x = packet.get("x", 0.5)
+                y = packet.get("y", 0.5)
+                input_emulator.move_mouse_absolute(x, y)
                 
             elif event == "mouse_click":
                 button = packet.get("button", "left")

@@ -100,3 +100,20 @@ def handle_keyboard(key: str, key_type: str = "keydown", modifiers: dict = None)
     # Release modifier keys in reverse order
     for mod_key in reversed(active_modifiers):
         keyboard.release(mod_key)
+
+def move_mouse_absolute(x_ratio: float, y_ratio: float):
+    import ctypes
+    user32 = ctypes.windll.user32
+    user32.SetProcessDPIAware()
+    width = user32.GetSystemMetrics(0)
+    height = user32.GetSystemMetrics(1)
+    
+    target_x = int(x_ratio * width)
+    target_y = int(y_ratio * height)
+    
+    # Clip to boundaries
+    target_x = max(0, min(width - 1, target_x))
+    target_y = max(0, min(height - 1, target_y))
+    
+    mouse.position = (target_x, target_y)
+

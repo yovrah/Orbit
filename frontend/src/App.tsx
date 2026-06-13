@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'remote' | 'keyboard' | 'media' | 'files'>('remote');
+  const [activeTab, setActiveTab] = useState<'remote' | 'screen' | 'keyboard' | 'media'>('remote');
   const [activeNav, setActiveNav] = useState<'apps' | 'history' | 'settings'>('apps');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showPairing, setShowPairing] = useState(false);
@@ -71,6 +71,89 @@ export default function App() {
     enabled: !!activeDevice && isAuthorized && activeTab === 'remote'
   });
 
+  // Screen stream touch handlers
+  const screenTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const screenLastTapTimeRef = useRef<number>(0);
+
+  const handleScreenTouchStart = (e: React.TouchEvent<HTMLImageElement>) => {
+    if (!activeDevice || !isAuthorized) return;
+    e.preventDefault();
+    
+    const touches = e.touches;
+    if (touches.length === 1) {
+      const touch = touches[0];
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = (touch.clientX - rect.left) / rect.width;
+      const y = (touch.clientY - rect.top) / rect.height;
+      
+      screenTouchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+      sendEvent({ event: 'mouse_absolute', x, y });
+    }
+  };
+
+  const handleScreenTouchMove = (e: React.TouchEvent<HTMLImageElement>) => {
+    if (!activeDevice || !isAuthorized) return;
+    e.preventDefault();
+    
+    const touches = e.touches;
+    if (touches.length === 1) {
+      const touch = touches[0];
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = (touch.clientX - rect.left) / rect.width;
+      const y = (touch.clientY - rect.top) / rect.height;
+      
+      if (x >= 0 && x <= 1 && y >= 0 && y <= 1) {
+        sendEvent({ event: 'mouse_absolute', x, y });
+      }
+    }
+  };
+
+  const handleScreenTouchEnd = (e: React.TouchEvent<HTMLImageElement>) => {
+    if (!activeDevice || !isAuthorized) return;
+    e.preventDefault();
+    
+    const start = screenTouchStartRef.current;
+    if (!start) return;
+    
+    const changedTouches = e.changedTouches;
+    if (changedTouches.length === 1) {
+      const touch = changedTouches[0];
+      const duration = Date.now() - start.time;
+      const dist = Math.sqrt(
+        Math.pow(touch.clientX - start.x, 2) + Math.pow(touch.clientY - start.y, 2)
+      );
+      
+      if (duration < 250 && dist < 15) {
+        const now = Date.now();
+        const diff = now - screenLastTapTimeRef.current;
+        if (diff < 300) {
+          sendEvent({ event: 'mouse_click', button: 'left', type: 'double' });
+          screenLastTapTimeRef.current = 0;
+        } else {
+          sendEvent({ event: 'mouse_click', button: 'left', type: 'click' });
+          screenLastTapTimeRef.current = now;
+        }
+      }
+    }
+    
+    if (e.touches.length === 0 && e.changedTouches.length === 2) {
+      sendEvent({ event: 'mouse_click', button: 'right', type: 'click' });
+    }
+    
+    screenTouchStartRef.current = null;
+  };
+
+  const handleScreenMouseDown = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!activeDevice || !isAuthorized) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    
+    sendEvent({ event: 'mouse_absolute', x, y });
+    const btn = e.button === 2 ? 'right' : 'left';
+    sendEvent({ event: 'mouse_click', button: btn, type: 'click' });
+  };
+
   const springTransition = {
     type: "spring",
     stiffness: 400,
@@ -85,9 +168,9 @@ export default function App() {
 
   const tabs = [
     { id: 'remote', label: 'Пульт' },
+    { id: 'screen', label: 'Экран' },
     { id: 'keyboard', label: 'Клавиатура' },
-    { id: 'media', label: 'Медиа' },
-    { id: 'files', label: 'Файлы' }
+    { id: 'media', label: 'Медиа' }
   ];
 
   // Resolve Connection Status Badge
@@ -164,46 +247,186 @@ export default function App() {
           ))}
         </div>
 
-        {/* 3. TOUCHPAD AREA */}
+        {/* 3. DYNAMIC CONTENT AREA */}
         <div className="flex-1 flex flex-col justify-center my-6">
-          <motion.div 
-            ref={touchpadRef}
-            className={`w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative overflow-hidden dotted-grid flex flex-col items-center justify-center ${
-              activeDevice && isAuthorized ? 'cursor-none active:scale-[0.99] transition-transform duration-150' : 'opacity-60 pointer-events-none'
-            }`}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={springTransition}
-          >
-            <motion.button 
-              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
-              {...buttonPress}
-            >
-              <Maximize2 size={15} />
-            </motion.button>
+          <AnimatePresence mode="wait">
+            {activeTab === 'remote' && (
+              <motion.div 
+                key="remote"
+                ref={touchpadRef}
+                className={`w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative overflow-hidden dotted-grid flex flex-col items-center justify-center ${
+                  activeDevice && isAuthorized ? 'cursor-none active:scale-[0.99] transition-transform duration-150' : 'opacity-60 pointer-events-none'
+                }`}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={springTransition}
+              >
+                <motion.button 
+                  className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
+                  {...buttonPress}
+                >
+                  <Maximize2 size={15} />
+                </motion.button>
 
-            <div className="text-center pointer-events-none">
-              <p className="text-sm font-medium text-[#86868b] tracking-wide max-w-[200px]">
-                {activeDevice 
-                  ? (isAuthorized ? 'Проведите для движения мыши' : 'Авторизация...') 
-                  : 'Требуется сопряжение с PC'}
-              </p>
-            </div>
+                <div className="text-center pointer-events-none">
+                  <p className="text-sm font-medium text-[#86868b] tracking-wide max-w-[200px]">
+                    {activeDevice 
+                      ? (isAuthorized ? 'Проведите для движения мыши' : 'Авторизация...') 
+                      : 'Требуется сопряжение с PC'}
+                  </p>
+                </div>
 
-            <motion.button 
-              className="absolute bottom-4 left-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
-              {...buttonPress}
-            >
-              <MousePointer size={15} />
-            </motion.button>
+                <motion.button 
+                  className="absolute bottom-4 left-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
+                  {...buttonPress}
+                >
+                  <MousePointer size={15} />
+                </motion.button>
 
-            <motion.button 
-              className="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
-              {...buttonPress}
-            >
-              <Keyboard size={15} />
-            </motion.button>
-          </motion.div>
+                <motion.button 
+                  className="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-white/60 dark:bg-white/10 flex items-center justify-center text-[var(--text-primary)] shadow-sm pointer-events-auto"
+                  {...buttonPress}
+                >
+                  <Keyboard size={15} />
+                </motion.button>
+              </motion.div>
+            )}
+
+            {activeTab === 'screen' && (
+              <motion.div 
+                key="screen"
+                className="w-full aspect-[1.1] glass-card rounded-[36px] overflow-hidden relative flex flex-col items-center justify-center"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={springTransition}
+              >
+                {activeDevice && isAuthorized ? (
+                  <img
+                    src={`${activeDevice.ipAddress}/api/v1/screen/stream`}
+                    alt="Screen Stream"
+                    className="w-full h-full object-contain cursor-crosshair select-none"
+                    onTouchStart={handleScreenTouchStart}
+                    onTouchMove={handleScreenTouchMove}
+                    onTouchEnd={handleScreenTouchEnd}
+                    onMouseDown={handleScreenMouseDown}
+                    onContextMenu={(e) => e.preventDefault()}
+                  />
+                ) : (
+                  <div className="text-center pointer-events-none">
+                    <p className="text-sm font-medium text-[#86868b]">Нет подключения</p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'keyboard' && (
+              <motion.div 
+                key="keyboard"
+                className="w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative flex flex-col justify-between"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={springTransition}
+              >
+                <div className="flex-1 flex flex-col gap-3">
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">Ввод текста</h3>
+                  <input
+                    type="text"
+                    placeholder="Нажмите для ввода текста..."
+                    className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-[var(--text-primary)]"
+                    onKeyDown={(e) => {
+                      e.preventDefault();
+                      const key = e.key;
+                      sendEvent({
+                        event: 'keyboard_input',
+                        key: key,
+                        type: 'press',
+                        modifiers: {
+                          ctrl: e.ctrlKey,
+                          alt: e.altKey,
+                          shift: e.shiftKey,
+                          win: e.metaKey
+                        }
+                      });
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                  <p className="text-[11px] text-[#86868b] leading-relaxed">
+                    Клавиатурный ввод отправляется на ПК в реальном времени. Работают все клавиши, включая Backspace, стрелочки и Enter.
+                  </p>
+                </div>
+                <div className="grid grid-cols-4 gap-2 mt-4">
+                  {[
+                    { label: 'Esc', key: 'esc' },
+                    { label: '⌫', key: 'backspace' },
+                    { label: '⏎ Enter', key: 'enter' },
+                    { label: 'Space', key: 'space' },
+                  ].map((btn) => (
+                    <button
+                      key={btn.key}
+                      onClick={() => sendEvent({ event: 'keyboard_input', key: btn.key, type: 'press' })}
+                      className="py-2.5 rounded-xl bg-black/5 dark:bg-white/5 active:bg-black/10 dark:active:bg-white/10 text-xs font-semibold text-[var(--text-primary)]"
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'media' && (
+              <motion.div 
+                key="media"
+                className="w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative flex flex-col justify-between"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={springTransition}
+              >
+                <div className="flex-1 flex flex-col justify-center gap-6">
+                  <div className="text-center">
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Громкость</h3>
+                    <p className="text-xs text-[#86868b] mt-1">Регулировка звука на ПК</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 px-2">
+                    <Sliders size={18} className="text-[#86868b]" />
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      defaultValue="50"
+                      onChange={(e) => {
+                        sendEvent({
+                          event: 'volume_set',
+                          level: parseInt(e.target.value)
+                        });
+                      }}
+                      className="flex-1 h-1.5 bg-black/10 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: '⏮ Назад', key: 'left' },
+                    { label: '⏯ Пауза', key: 'space' },
+                    { label: '⏭ Вперед', key: 'right' }
+                  ].map((btn) => (
+                    <button
+                      key={btn.key}
+                      onClick={() => sendEvent({ event: 'keyboard_input', key: btn.key, type: 'press' })}
+                      className="py-3 rounded-xl bg-black/5 dark:bg-white/5 active:bg-black/10 dark:active:bg-white/10 text-xs font-semibold text-[var(--text-primary)]"
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* 4. MOUSE BUTTONS */}
