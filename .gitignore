@@ -1,0 +1,26 @@
+# Node
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+.eslintcache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+agent/venv/
+.pytest_cache/
+
+# Databases & Configs
+*.db
+orbit_agent.db
+.env
+local_settings.py
+
+# System & IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* HSL Colors */
+  --bg-gradient-start: #eef2f7;
+  --bg-gradient-end: #f5f7fa;
+  --card-bg: rgba(255, 255, 255, 0.45);
+  --card-border: rgba(255, 255, 255, 0.6);
+  --text-primary: #1d1d1f;
+  --text-secondary: #86868b;
+  --accent-blue: #0071e3;
+  --accent-green: #34c759;
+  --accent-red: #ff3b30;
+  --accent-purple: #af52de;
+  --shadow-color: rgba(0, 0, 0, 0.04);
+  --glass-blur: 24px;
+}
+
+.dark {
+  --bg-gradient-start: #0a0a0c;
+  --bg-gradient-end: #121215;
+  --card-bg: rgba(26, 26, 30, 0.45);
+  --card-border: rgba(255, 255, 255, 0.05);
+  --text-primary: #f5f5f7;
+  --text-secondary: #86868b;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Base resets for mobile apps */
+body {
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Custom premium Glassmorphism utilities */
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 8px 32px 0 var(--shadow-color);
+}
+
+.dotted-grid {
+  background-image: radial-gradient(rgba(134, 134, 139, 0.15) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Hide scrollbars globally */
+::-webkit-scrollbar {
+  display: none;
+}
