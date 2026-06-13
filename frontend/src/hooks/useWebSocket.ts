@@ -40,13 +40,19 @@ export function useWebSocket(device: Device | null) {
     }
 
     let wsUrl = '';
-    const base = device.ipAddress;
-    if (base.startsWith('https://')) {
-      wsUrl = base.replace('https://', 'wss://') + '/ws/control';
-    } else if (base.startsWith('http://')) {
-      wsUrl = base.replace('http://', 'ws://') + '/ws/control';
+    const port = window.location.port;
+    if (port === '23810') {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.hostname}:${port}/ws/control`;
     } else {
-      wsUrl = `ws://${base}:${device.port}/ws/control`;
+      const base = device.ipAddress;
+      if (base.startsWith('https://')) {
+        wsUrl = base.replace('https://', 'wss://') + '/ws/control';
+      } else if (base.startsWith('http://')) {
+        wsUrl = base.replace('http://', 'ws://') + '/ws/control';
+      } else {
+        wsUrl = `ws://${base}:${device.port}/ws/control`;
+      }
     }
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;

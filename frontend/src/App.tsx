@@ -38,13 +38,21 @@ export default function App() {
       const port = window.location.port;
       const hostname = window.location.hostname;
       if (port === '23810') {
+        const protocol = window.location.protocol;
+        const currentOrigin = `${protocol}//${hostname}:${port}`;
         const count = await db.devices.count();
-        if (count === 0) {
-          const protocol = window.location.protocol;
+        const localDevice = await db.devices.get('local-auto-paired-uuid');
+        
+        if (localDevice) {
+          if (localDevice.ipAddress !== currentOrigin) {
+            await db.devices.update('local-auto-paired-uuid', { ipAddress: currentOrigin });
+            console.log('Обновлен IP-адрес локального агента в БД:', currentOrigin);
+          }
+        } else if (count === 0) {
           await db.devices.add({
             uuid: 'local-auto-paired-uuid',
             name: 'Этот Компьютер',
-            ipAddress: `${protocol}//${hostname}:${port}`,
+            ipAddress: currentOrigin,
             port: 23810,
             macAddress: '00:00:00:00:00:00',
             osName: 'Windows',
