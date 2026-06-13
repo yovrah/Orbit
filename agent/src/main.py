@@ -53,6 +53,13 @@ class WolRequest(BaseModel):
 class AppLaunchRequest(BaseModel):
     path: str
 
+class FileOpenRequest(BaseModel):
+    path: str
+
+class ProcessKillRequest(BaseModel):
+    hwnd: int = None
+    pid: int = None
+
 def print_qr_code(url: str, hostname_url: str):
     try:
         import qrcode
@@ -213,6 +220,108 @@ def launch_app(req: AppLaunchRequest):
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
         )
         return {"status": "launched", "path": norm_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/files/list")
+def list_files(path: str = None):
+    try:
+        if not path:
+            import string
+            drives = []
+            for letter in string.ascii_uppercase:
+                drive = f"{letter}:\\"
+                if os.path.exists(drive):
+                    drives.append({
+                        "name": f"Локальный диск ({letter}:)",
+                        "path": drive,
+                        "is_dir": True,
+                        "size": 0
+                    })
+            return {"files": drives}
+        
+        norm_path = os.path.normpath(path)
+        if not os.path.exists(norm_path) or not os.path.isdir(norm_path):
+            raise HTTPException(status_code=400, detail="Invalid directory path")
+        
+        items = []
+        with os.scandir(norm_path) as entries:
+            for entry in entries:
+                try:
+                    is_dir = entry.is_dir()
+                    size = 0
+                    if not is_dir:
+                        size = entry.stat().st_size
+                    items.append({
+                        "name": entry.name,
+                        "path": entry.path,
+                        "is_dir": is_dir,
+                        "size": size
+                    })
+                except Exception:
+                    pass
+        
+        items.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
+        return {"files": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/files/open")
+def open_file(req: FileOpenRequest):
+    try:
+        norm_path = os.path.normpath(req.path)
+        if not os.path.exists(norm_path):
+            raise HTTPException(status_code=400, detail="Target path does not exist")
+        
+        os.startfile(norm_path)
+        return {"status": "opened", "path": norm_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/system/processes")
+def get_processes():
+    try:
+        import win32gui
+        import win32process
+        
+        windows = []
+        def enum_handler(hwnd, extra):
+            if win32gui.IsWindowVisible(hwnd):
+                title = win32gui.GetWindowText(hwnd)
+                if title and title not in ["Program Manager", "Start"]:
+                    try:
+                        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                        windows.append({
+                            "hwnd": hwnd,
+                            "title": title,
+                            "pid": pid
+                        })
+                    except Exception:
+                        pass
+        
+        win32gui.EnumWindows(enum_handler, None)
+        windows.sort(key=lambda x: x["title"].lower())
+        return {"processes": windows}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/system/processes/kill")
+def kill_process(req: ProcessKillRequest):
+    try:
+        import win32gui
+        closed = False
+        if req.hwnd:
+            win32gui.PostMessage(req.hwnd, 0x0010, 0, 0)
+            closed = True
+        if req.pid:
+            try:
+                os.kill(req.pid, 9)
+            except Exception:
+                os.system(f"taskkill /F /PID {req.pid}")
+            closed = True
+        if not closed:
+            raise HTTPException(status_code=400, detail="Either hwnd or pid must be specified")
+        return {"status": "killed", "hwnd": req.hwnd, "pid": req.pid}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

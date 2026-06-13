@@ -27,7 +27,19 @@ SPECIAL_KEYS_MAP = {
     "home": Key.home,
     "end": Key.end,
     "pageup": Key.page_up,
-    "pagedown": Key.page_down
+    "pagedown": Key.page_down,
+    "f1": Key.f1,
+    "f2": Key.f2,
+    "f3": Key.f3,
+    "f4": Key.f4,
+    "f5": Key.f5,
+    "f6": Key.f6,
+    "f7": Key.f7,
+    "f8": Key.f8,
+    "f9": Key.f9,
+    "f10": Key.f10,
+    "f11": Key.f11,
+    "f12": Key.f12
 }
 
 def move_mouse(dx: float, dy: float, accel: bool = True):

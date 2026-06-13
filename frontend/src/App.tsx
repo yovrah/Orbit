@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db/clientDb';
@@ -15,18 +15,40 @@ import {
   RotateCw, 
   Tv, 
   ChevronRight, 
+  ChevronLeft,
   LayoutGrid, 
   Clock, 
   Settings,
   Sliders,
-  Plus
+  Plus,
+  Folder,
+  File,
+  Search,
+  Play,
+  SkipForward,
+  SkipBack,
+  X,
+  RefreshCw,
+  Volume2
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'remote' | 'screen' | 'keyboard' | 'media'>('remote');
+  const [activeTab, setActiveTab] = useState<'remote' | 'screen' | 'keyboard' | 'files' | 'apps'>('remote');
   const [activeNav, setActiveNav] = useState<'apps' | 'history' | 'settings'>('apps');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showPairing, setShowPairing] = useState(false);
+
+  // Files state
+  const [currentPath, setCurrentPath] = useState<string | null>(null);
+  const [files, setFiles] = useState<Array<{ name: string; path: string; is_dir: boolean; size: number }>>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+
+  // Apps & Processes state
+  const [scannedApps, setScannedApps] = useState<Array<{ name: string; path: string; icon: string }>>([]);
+  const [runningProcesses, setRunningProcesses] = useState<Array<{ hwnd: number; title: string; pid: number }>>([]);
+  const [appSearchQuery, setAppSearchQuery] = useState('');
+  const [appsMode, setAppsMode] = useState<'launch' | 'processes'>('launch');
+  const [isLoadingApps, setIsLoadingApps] = useState(false);
 
   // Read paired devices from IndexedDB
   const devices = useLiveQuery(() => db.devices.toArray()) || [];
@@ -79,23 +101,112 @@ export default function App() {
     enabled: !!activeDevice && isAuthorized && activeTab === 'remote'
   });
 
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const fetchFiles = useCallback(async (path: string | null) => {
+    if (!activeDevice) return;
+    setIsLoadingFiles(true);
+    try {
+      const query = path ? `?path=${encodeURIComponent(path)}` : '';
+      const res = await fetch(`${activeDevice.ipAddress}/api/v1/files/list${query}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFiles(data.files || []);
+        setCurrentPath(path);
+      }
+    } catch (err) {
+      console.error('Error fetching files:', err);
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  }, [activeDevice]);
+
+  const fetchScannedApps = useCallback(async () => {
+    if (!activeDevice) return;
+    try {
+      const res = await fetch(`${activeDevice.ipAddress}/api/v1/apps`);
+      if (res.ok) {
+        const data = await res.json();
+        setScannedApps(data.apps || []);
+      }
+    } catch (err) {
+      console.error('Error fetching scanned apps:', err);
+    }
+  }, [activeDevice]);
+
+  const fetchRunningProcesses = useCallback(async () => {
+    if (!activeDevice) return;
+    try {
+      const res = await fetch(`${activeDevice.ipAddress}/api/v1/system/processes`);
+      if (res.ok) {
+        const data = await res.json();
+        setRunningProcesses(data.processes || []);
+      }
+    } catch (err) {
+      console.error('Error fetching processes:', err);
+    }
+  }, [activeDevice]);
+
+  useEffect(() => {
+    if (activeTab === 'files' && activeDevice) {
+      fetchFiles(currentPath);
+    }
+  }, [activeTab, currentPath, activeDevice, fetchFiles]);
+
+  useEffect(() => {
+    if (activeTab === 'apps' && activeDevice) {
+      setIsLoadingApps(true);
+      Promise.all([fetchScannedApps(), fetchRunningProcesses()]).finally(() => {
+        setIsLoadingApps(false);
+      });
+      const interval = setInterval(fetchRunningProcesses, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, activeDevice, fetchScannedApps, fetchRunningProcesses]);
+
   // Screen stream touch handlers
   const screenTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const screenLastTouchRef = useRef<{ y: number } | null>(null);
+  const isScreenScrollingRef = useRef(false);
   const screenLastTapTimeRef = useRef<number>(0);
+  const [ripples, setRipples] = useState<Array<{ id: number; x: number; y: number }>>([]);
+
+  const addRipple = (x: number, y: number) => {
+    const id = Math.random();
+    setRipples((prev) => [...prev, { id, x, y }]);
+    setTimeout(() => {
+      setRipples((prev) => prev.filter((r) => r.id !== id));
+    }, 500);
+  };
 
   const handleScreenTouchStart = (e: React.TouchEvent<HTMLImageElement>) => {
     if (!activeDevice || !isAuthorized) return;
     e.preventDefault();
     
     const touches = e.touches;
+    const rect = e.currentTarget.getBoundingClientRect();
+    
     if (touches.length === 1) {
       const touch = touches[0];
-      const rect = e.currentTarget.getBoundingClientRect();
       const x = (touch.clientX - rect.left) / rect.width;
       const y = (touch.clientY - rect.top) / rect.height;
       
       screenTouchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+      isScreenScrollingRef.current = false;
+      
       sendEvent({ event: 'mouse_absolute', x, y });
+      addRipple(x, y);
+    } else if (touches.length === 2) {
+      isScreenScrollingRef.current = true;
+      const t1 = touches[0];
+      const t2 = touches[1];
+      screenLastTouchRef.current = { y: (t1.clientY + t2.clientY) / 2 };
     }
   };
 
@@ -104,15 +215,30 @@ export default function App() {
     e.preventDefault();
     
     const touches = e.touches;
-    if (touches.length === 1) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    
+    if (touches.length === 1 && !isScreenScrollingRef.current) {
       const touch = touches[0];
-      const rect = e.currentTarget.getBoundingClientRect();
       const x = (touch.clientX - rect.left) / rect.width;
       const y = (touch.clientY - rect.top) / rect.height;
       
       if (x >= 0 && x <= 1 && y >= 0 && y <= 1) {
         sendEvent({ event: 'mouse_absolute', x, y });
       }
+    } else if (touches.length === 2 && isScreenScrollingRef.current) {
+      const t1 = touches[0];
+      const t2 = touches[1];
+      const currentMidY = (t1.clientY + t2.clientY) / 2;
+      
+      if (screenLastTouchRef.current) {
+        const dy = (currentMidY - screenLastTouchRef.current.y) / 2.0;
+        sendEvent({
+          event: 'mouse_scroll',
+          dx: 0,
+          dy: dy
+        });
+      }
+      screenLastTouchRef.current = { y: currentMidY };
     }
   };
 
@@ -121,11 +247,9 @@ export default function App() {
     e.preventDefault();
     
     const start = screenTouchStartRef.current;
-    if (!start) return;
     
-    const changedTouches = e.changedTouches;
-    if (changedTouches.length === 1) {
-      const touch = changedTouches[0];
+    if (start && e.changedTouches.length === 1 && !isScreenScrollingRef.current) {
+      const touch = e.changedTouches[0];
       const duration = Date.now() - start.time;
       const dist = Math.sqrt(
         Math.pow(touch.clientX - start.x, 2) + Math.pow(touch.clientY - start.y, 2)
@@ -142,6 +266,8 @@ export default function App() {
           screenLastTapTimeRef.current = now;
         }
       }
+    } else if (isScreenScrollingRef.current && e.touches.length === 0) {
+      isScreenScrollingRef.current = false;
     }
     
     if (e.touches.length === 0 && e.changedTouches.length === 2) {
@@ -149,6 +275,7 @@ export default function App() {
     }
     
     screenTouchStartRef.current = null;
+    screenLastTouchRef.current = null;
   };
 
   const handleScreenMouseDown = (e: React.MouseEvent<HTMLImageElement>) => {
@@ -160,6 +287,68 @@ export default function App() {
     sendEvent({ event: 'mouse_absolute', x, y });
     const btn = e.button === 2 ? 'right' : 'left';
     sendEvent({ event: 'mouse_click', button: btn, type: 'click' });
+    addRipple(x, y);
+  };
+
+  const handleLaunchApp = async (path: string) => {
+    if (!activeDevice) return;
+    try {
+      await fetch(`${activeDevice.ipAddress}/api/v1/apps/launch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path })
+      });
+    } catch (err) {
+      console.error('Failed to launch app:', err);
+    }
+  };
+
+  const handleKillProcess = async (hwnd: number, pid: number) => {
+    if (!activeDevice) return;
+    try {
+      const res = await fetch(`${activeDevice.ipAddress}/api/v1/system/processes/kill`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hwnd, pid })
+      });
+      if (res.ok) {
+        fetchRunningProcesses();
+      }
+    } catch (err) {
+      console.error('Failed to close process:', err);
+    }
+  };
+
+  const handleGoBack = () => {
+    if (!currentPath) return;
+    let path = currentPath;
+    if (path.endsWith('\\')) {
+      path = path.slice(0, -1);
+    }
+    const idx = path.lastIndexOf('\\');
+    if (idx !== -1) {
+      const parent = path.substring(0, idx + 1);
+      if (parent.endsWith(':')) {
+        fetchFiles(parent + '\\');
+      } else {
+        fetchFiles(parent);
+      }
+    } else {
+      fetchFiles(null);
+    }
+  };
+
+  const handleOpenFile = async (path: string) => {
+    if (!activeDevice) return;
+    try {
+      await fetch(`${activeDevice.ipAddress}/api/v1/files/open`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path })
+      });
+    } catch (err) {
+      console.error('Failed to open file:', err);
+    }
   };
 
   const springTransition = {
@@ -177,8 +366,9 @@ export default function App() {
   const tabs = [
     { id: 'remote', label: 'Пульт' },
     { id: 'screen', label: 'Экран' },
-    { id: 'keyboard', label: 'Клавиатура' },
-    { id: 'media', label: 'Медиа' }
+    { id: 'keyboard', label: 'Клавиши' },
+    { id: 'files', label: 'Файлы' },
+    { id: 'apps', label: 'Программы' }
   ];
 
   // Resolve Connection Status Badge
@@ -306,23 +496,35 @@ export default function App() {
                 {activeTab === 'screen' && (
                   <motion.div 
                     key="screen"
-                    className="w-full aspect-[1.1] glass-card rounded-[36px] overflow-hidden relative flex flex-col items-center justify-center"
+                    className="w-full aspect-[1.1] glass-card rounded-[36px] overflow-hidden relative flex flex-col items-center justify-center select-none"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={springTransition}
                   >
                     {activeDevice && isAuthorized ? (
-                      <img
-                        src={`${activeDevice.ipAddress}/api/v1/screen/stream`}
-                        alt="Screen Stream"
-                        className="w-full h-full object-contain cursor-crosshair select-none"
-                        onTouchStart={handleScreenTouchStart}
-                        onTouchMove={handleScreenTouchMove}
-                        onTouchEnd={handleScreenTouchEnd}
-                        onMouseDown={handleScreenMouseDown}
-                        onContextMenu={(e) => e.preventDefault()}
-                      />
+                      <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+                        <img
+                          src={`${activeDevice.ipAddress}/api/v1/screen/stream`}
+                          alt="Screen Stream"
+                          className="w-full h-full object-contain cursor-crosshair select-none"
+                          onTouchStart={handleScreenTouchStart}
+                          onTouchMove={handleScreenTouchMove}
+                          onTouchEnd={handleScreenTouchEnd}
+                          onMouseDown={handleScreenMouseDown}
+                          onContextMenu={(e) => e.preventDefault()}
+                        />
+                        {ripples.map((ripple) => (
+                          <span
+                            key={ripple.id}
+                            className="absolute w-8 h-8 -ml-4 -mt-4 rounded-full border border-blue-500 bg-blue-500/20 pointer-events-none animate-ping animate-duration-500"
+                            style={{
+                              left: `${ripple.x * 100}%`,
+                              top: `${ripple.y * 100}%`,
+                            }}
+                          />
+                        ))}
+                      </div>
                     ) : (
                       <div className="text-center pointer-events-none">
                         <p className="text-sm font-medium text-[#86868b]">Нет подключения</p>
@@ -334,18 +536,22 @@ export default function App() {
                 {activeTab === 'keyboard' && (
                   <motion.div 
                     key="keyboard"
-                    className="w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative flex flex-col justify-between"
+                    className="w-full aspect-[1.1] glass-card rounded-[36px] p-5 relative flex flex-col gap-4 overflow-y-auto scrollbar-none"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={springTransition}
                   >
-                    <div className="flex-1 flex flex-col gap-3">
-                      <h3 className="text-sm font-semibold text-[var(--text-primary)]">Ввод текста</h3>
+                    {/* Text Input Row */}
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-[#86868b]">Ввод текста</span>
+                        <span className="text-[10px] text-[#86868b]">Работает и Backspace</span>
+                      </div>
                       <input
                         type="text"
                         placeholder="Нажмите для ввода текста..."
-                        className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-[var(--text-primary)]"
+                        className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 text-[var(--text-primary)]"
                         onKeyDown={(e) => {
                           e.preventDefault();
                           const key = e.key;
@@ -363,46 +569,36 @@ export default function App() {
                           e.currentTarget.value = '';
                         }}
                       />
-                      <p className="text-[11px] text-[#86868b] leading-relaxed">
-                        Клавиатурный ввод отправляется на ПК в реальном времени. Работают все клавиши, включая Backspace, стрелочки и Enter.
-                      </p>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 mt-4">
-                      {[
-                        { label: 'Esc', key: 'esc' },
-                        { label: '⌫', key: 'backspace' },
-                        { label: '⏎ Enter', key: 'enter' },
-                        { label: 'Space', key: 'space' },
-                      ].map((btn) => (
-                        <button
-                          key={btn.key}
-                          onClick={() => sendEvent({ event: 'keyboard_input', key: btn.key, type: 'press' })}
-                          className="py-2.5 rounded-xl bg-black/5 dark:bg-white/5 active:bg-black/10 dark:active:bg-white/10 text-xs font-semibold text-[var(--text-primary)]"
-                        >
-                          {btn.label}
-                        </button>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
 
-                {activeTab === 'media' && (
-                  <motion.div 
-                    key="media"
-                    className="w-full aspect-[1.1] glass-card rounded-[36px] p-6 relative flex flex-col justify-between"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={springTransition}
-                  >
-                    <div className="flex-1 flex flex-col justify-center gap-6">
-                      <div className="text-center">
-                        <h3 className="text-sm font-semibold text-[var(--text-primary)]">Громкость</h3>
-                        <p className="text-xs text-[#86868b] mt-1">Регулировка звука на ПК</p>
+                    {/* Hotkey Grid */}
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      <span className="text-xs font-semibold text-[#86868b]">Горячие клавиши</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { label: 'Alt + Tab', key: 'tab', mods: { alt: true } },
+                          { label: 'Alt + F4', key: 'f4', mods: { alt: true } },
+                          { label: 'Win + D', key: 'd', mods: { win: true } },
+                          { label: 'Win + Tab', key: 'tab', mods: { win: true } },
+                          { label: 'Win + L', key: 'l', mods: { win: true } },
+                          { label: 'Дисп. задач', key: 'esc', mods: { ctrl: true, shift: true } },
+                        ].map((btn, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => sendEvent({ event: 'keyboard_input', key: btn.key, type: 'press', modifiers: btn.mods })}
+                            className="py-2 rounded-xl bg-black/5 dark:bg-white/5 active:bg-black/10 dark:active:bg-white/10 text-[10px] font-semibold text-[var(--text-primary)] transition-colors border border-black/5 dark:border-white/5"
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
                       </div>
-                      
-                      <div className="flex items-center gap-4 px-2">
-                        <Sliders size={18} className="text-[#86868b]" />
+                    </div>
+
+                    {/* Master Volume Slider */}
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      <span className="text-xs font-semibold text-[#86868b]">Громкость ПК</span>
+                      <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-2 rounded-xl border border-black/5 dark:border-white/5">
+                        <Volume2 size={16} className="text-[#86868b]" />
                         <input
                           type="range"
                           min="0"
@@ -418,21 +614,245 @@ export default function App() {
                         />
                       </div>
                     </div>
-                    
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { label: '⏮ Назад', key: 'left' },
-                        { label: '⏯ Пауза', key: 'space' },
-                        { label: '⏭ Вперед', key: 'right' }
-                      ].map((btn) => (
-                        <button
-                          key={btn.key}
-                          onClick={() => sendEvent({ event: 'keyboard_input', key: btn.key, type: 'press' })}
-                          className="py-3 rounded-xl bg-black/5 dark:bg-white/5 active:bg-black/10 dark:active:bg-white/10 text-xs font-semibold text-[var(--text-primary)]"
+
+                    {/* Media Controls */}
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      <span className="text-xs font-semibold text-[#86868b]">Плеер</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { label: '⏮ Назад', key: 'left', icon: SkipBack },
+                          { label: '⏯ Пауза', key: 'space', icon: Play },
+                          { label: '⏭ Вперед', key: 'right', icon: SkipForward }
+                        ].map((btn, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => sendEvent({ event: 'keyboard_input', key: btn.key, type: 'press' })}
+                            className="py-2 flex items-center justify-center gap-1 rounded-xl bg-black/5 dark:bg-white/5 active:bg-black/10 dark:active:bg-white/10 text-[10px] font-semibold text-[var(--text-primary)] border border-black/5 dark:border-white/5"
+                          >
+                            <btn.icon size={12} />
+                            <span>{btn.label.split(' ')[1]}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {activeTab === 'files' && (
+                  <motion.div 
+                    key="files"
+                    className="w-full aspect-[1.1] glass-card rounded-[36px] p-5 relative flex flex-col gap-3 overflow-hidden"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={springTransition}
+                  >
+                    <div className="flex items-center justify-between border-b border-black/5 dark:border-white/5 pb-2 shrink-0">
+                      <div className="flex items-center gap-2 overflow-hidden flex-1">
+                        {currentPath ? (
+                          <button 
+                            onClick={handleGoBack}
+                            className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-[var(--text-primary)]"
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+                        ) : (
+                          <Folder size={16} className="text-[#86868b] shrink-0" />
+                        )}
+                        <span className="text-xs font-bold truncate text-[var(--text-primary)]">
+                          {currentPath ? currentPath : 'Локальный ПК'}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => fetchFiles(currentPath)}
+                        className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-[#86868b] hover:text-[var(--text-primary)] shrink-0"
+                      >
+                        <RefreshCw size={14} className={isLoadingFiles ? "animate-spin" : ""} />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-1.5 scrollbar-thin">
+                      {isLoadingFiles ? (
+                        <div className="flex flex-col items-center justify-center py-10 gap-2">
+                          <RefreshCw size={24} className="animate-spin text-[#86868b]" />
+                          <span className="text-xs text-[#86868b]">Загрузка файлов...</span>
+                        </div>
+                      ) : files.length === 0 ? (
+                        <div className="text-center py-10">
+                          <span className="text-xs text-[#86868b]">Нет файлов или доступ ограничен</span>
+                        </div>
+                      ) : (
+                        files.map((file, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => file.is_dir ? fetchFiles(file.path) : handleOpenFile(file.path)}
+                            className="flex items-center justify-between p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer border border-transparent hover:border-black/5 dark:hover:border-white/5 transition-all active:scale-[0.99]"
+                          >
+                            <div className="flex items-center gap-2.5 overflow-hidden flex-1 pr-2">
+                              {file.is_dir ? (
+                                <Folder size={16} className="text-[#ffcc00] shrink-0 fill-[#ffcc00]/10" />
+                              ) : (
+                                <File size={16} className="text-[#0071e3] shrink-0 fill-[#0071e3]/10" />
+                              )}
+                              <span className="text-xs font-medium text-[var(--text-primary)] truncate">
+                                {file.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {!file.is_dir && (
+                                <span className="text-[10px] text-[#86868b] font-mono">
+                                  {formatFileSize(file.size)}
+                                </span>
+                              )}
+                              {file.is_dir && (
+                                <ChevronRight size={12} className="text-[#86868b]" />
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+
+                {activeTab === 'apps' && (
+                  <motion.div 
+                    key="apps"
+                    className="w-full aspect-[1.1] glass-card rounded-[36px] p-5 relative flex flex-col gap-3 overflow-hidden"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={springTransition}
+                  >
+                    {/* Mode selector */}
+                    <div className="flex items-center justify-between p-1 bg-black/5 dark:bg-white/5 rounded-xl shrink-0">
+                      <button
+                        onClick={() => setAppsMode('launch')}
+                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                          appsMode === 'launch'
+                            ? 'bg-white dark:bg-white/10 text-black dark:text-white shadow-sm'
+                            : 'text-[#86868b] hover:text-[var(--text-primary)]'
+                        }`}
+                      >
+                        Запуск
+                      </button>
+                      <button
+                        onClick={() => setAppsMode('processes')}
+                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                          appsMode === 'processes'
+                            ? 'bg-white dark:bg-white/10 text-black dark:text-white shadow-sm'
+                            : 'text-[#86868b] hover:text-[var(--text-primary)]'
+                        }`}
+                      >
+                        Процессы
+                      </button>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="relative flex items-center shrink-0">
+                      <Search size={14} className="absolute left-3 text-[#86868b] pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder={appsMode === 'launch' ? 'Поиск программ...' : 'Поиск процессов...'}
+                        value={appSearchQuery}
+                        onChange={(e) => setAppSearchQuery(e.target.value)}
+                        className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-blue-500 text-[var(--text-primary)]"
+                      />
+                      {appSearchQuery && (
+                        <button 
+                          onClick={() => setAppSearchQuery('')}
+                          className="absolute right-3 text-[#86868b] hover:text-[var(--text-primary)]"
                         >
-                          {btn.label}
+                          <X size={14} />
                         </button>
-                      ))}
+                      )}
+                    </div>
+
+                    {/* Scrolled list */}
+                    <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-1.5 scrollbar-thin">
+                      {isLoadingApps ? (
+                        <div className="flex flex-col items-center justify-center py-10 gap-2">
+                          <RefreshCw size={24} className="animate-spin text-[#86868b]" />
+                          <span className="text-xs text-[#86868b]">Загрузка...</span>
+                        </div>
+                      ) : appsMode === 'launch' ? (
+                        (() => {
+                          const filtered = scannedApps.filter(app => 
+                            app.name.toLowerCase().includes(appSearchQuery.toLowerCase())
+                          );
+                          if (filtered.length === 0) {
+                            return (
+                              <div className="text-center py-10 text-xs text-[#86868b]">
+                                Программы не найдены
+                              </div>
+                            );
+                          }
+                          return filtered.map((app, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => handleLaunchApp(app.path)}
+                              className="flex items-center justify-between p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer border border-transparent hover:border-black/5 dark:hover:border-white/5 transition-all active:scale-[0.99]"
+                            >
+                              <div className="flex items-center gap-2.5 overflow-hidden flex-1">
+                                {app.icon ? (
+                                  <img
+                                    src={`data:image/png;base64,${app.icon}`}
+                                    alt={app.name}
+                                    className="w-7 h-7 rounded-lg object-contain shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+                                    <Monitor size={14} />
+                                  </div>
+                                )}
+                                <div className="flex flex-col overflow-hidden">
+                                  <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                                    {app.name}
+                                  </span>
+                                  <span className="text-[9px] text-[#86868b] truncate font-mono">
+                                    {app.path}
+                                  </span>
+                                </div>
+                              </div>
+                              <ChevronRight size={12} className="text-[#86868b] shrink-0 ml-1" />
+                            </div>
+                          ));
+                        })()
+                      ) : (
+                        (() => {
+                          const filtered = runningProcesses.filter(proc => 
+                            proc.title.toLowerCase().includes(appSearchQuery.toLowerCase())
+                          );
+                          if (filtered.length === 0) {
+                            return (
+                              <div className="text-center py-10 text-xs text-[#86868b]">
+                                Активные процессы не найдены
+                              </div>
+                            );
+                          }
+                          return filtered.map((proc, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-black/5 dark:hover:border-white/5 transition-all"
+                            >
+                              <div className="flex flex-col overflow-hidden flex-1 pr-2">
+                                <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                                  {proc.title}
+                                </span>
+                                <span className="text-[9px] text-[#86868b] font-mono">
+                                  PID: {proc.pid}
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => handleKillProcess(proc.hwnd, proc.pid)}
+                                className="bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors shrink-0 active:scale-[0.97]"
+                              >
+                                Закрыть
+                              </button>
+                            </div>
+                          ));
+                        })()
+                      )}
                     </div>
                   </motion.div>
                 )}
