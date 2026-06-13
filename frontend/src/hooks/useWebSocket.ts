@@ -1,28 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Device } from '../db/clientDb';
+import { sha256 } from 'js-sha256';
 
-// Utility to calculate HMAC-SHA256 signature using native Web Crypto API
-async function calculateHmac(message: string, secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const messageData = encoder.encode(message);
-  const secretData = encoder.encode(secret);
-
-  const cryptoKey = await window.crypto.subtle.importKey(
-    "raw",
-    secretData,
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signatureBuffer = await window.crypto.subtle.sign(
-    "HMAC",
-    cryptoKey,
-    messageData
-  );
-
-  const signatureArray = Array.from(new Uint8Array(signatureBuffer));
-  return signatureArray.map(b => b.toString(16).padStart(2, '0')).join('');
+// Utility to calculate HMAC-SHA256 signature using js-sha256 (works in HTTP)
+function calculateHmac(message: string, secret: string): string {
+  return sha256.hmac(secret, message);
 }
 
 export function useWebSocket(device: Device | null) {
@@ -65,7 +47,7 @@ export function useWebSocket(device: Device | null) {
         const timestamp = Math.floor(Date.now() / 1000);
         // Message payload to sign: "client_id:timestamp"
         const message = `${device.uuid}:${timestamp}`;
-        const signature = await calculateHmac(message, device.sharedSecret);
+        const signature = calculateHmac(message, device.sharedSecret);
 
         // Send handshake
         ws.send(JSON.stringify({
