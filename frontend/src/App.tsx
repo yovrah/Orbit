@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 
 import { OrbitProvider, useOrbit } from './state/OrbitContext';
+import { useScrollFade } from './hooks/useScrollFade';
 import { Navbar } from './components/Navbar';
 import { AudioPlayer } from './components/AudioPlayer';
 import { Onboarding } from './components/Onboarding';
@@ -34,6 +35,7 @@ function AppShell({
 }: ShellProps) {
   const { devices, setActiveDeviceUuid } = useOrbit();
   const [activeView, setActiveView] = useState<View>('dashboard');
+  const { ref: stageRef, hasMore: hasMoreBelow } = useScrollFade<HTMLElement>();
 
   return (
     <div className="app-shell">
@@ -41,7 +43,10 @@ function AppShell({
       <div className="ambient ambient-green" />
 
       <main className="phone-frame">
-        <section className={`content-stage ${activeView === 'mouse' ? 'no-scroll' : ''}`}>
+        <section
+          ref={stageRef}
+          className={`content-stage ${activeView === 'mouse' ? 'no-scroll' : ''} ${hasMoreBelow ? 'has-more-below' : ''}`}
+        >
           <AnimatePresence mode="wait">
             {activeView === 'dashboard' && <DashboardTab onNavigate={setActiveView} />}
             {activeView === 'mouse' && <MouseTab />}

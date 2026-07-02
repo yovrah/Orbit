@@ -286,6 +286,16 @@ input {
   overflow-y: hidden;
 }
 
+/* Fades the last ~28px of content instead of ending in a hard cut — without
+   this, a row landing right at the viewport edge (e.g. Quick Access icons)
+   reads as a clipping bug rather than "scroll for more". Applied only while
+   there's genuinely more to scroll (see useScrollFade), so it never trims
+   content that's actually the true end of the list. */
+.content-stage.has-more-below {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+}
+
 .content-stage::-webkit-scrollbar {
   display: none;
 }
