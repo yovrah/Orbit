@@ -5,6 +5,7 @@ import { OrbitProvider, useOrbit } from './state/OrbitContext';
 import { Navbar } from './components/Navbar';
 import { AudioPlayer } from './components/AudioPlayer';
 import { Onboarding } from './components/Onboarding';
+import { InstallPrompt } from './components/InstallPrompt';
 import PairingFlow from './components/PairingFlow';
 import { DashboardTab } from './features/dashboard/DashboardTab';
 import { MouseTab } from './features/mouse/MouseTab';
@@ -91,6 +92,8 @@ function AppShell({
       <AnimatePresence>
         {activeTool && <ToolSheets tool={activeTool} onClose={() => setActiveTool(null)} />}
       </AnimatePresence>
+
+      <InstallPrompt />
 
       <AudioPlayer />
     </div>

@@ -2123,6 +2123,34 @@ input {
   background: var(--chip);
 }
 
+/* ---- Install prompt steps ---- */
+.install-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--chip);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.install-step strong {
+  font-weight: 900;
+}
+
+.install-step-ico {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--blue);
+  background: var(--card);
+}
+
 /* ---- Home widget grid ---- */
 /* 4 columns so a quarter-width "slim" slider (iOS Control-Center) fits next to
    half- and full-width tiles. A visual square spans 2 of the 4 columns. */

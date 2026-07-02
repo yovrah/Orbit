@@ -14,10 +14,12 @@ export function getMouseButtonMeta(type: MouseButtonInstance['type']): MouseButt
   return MOUSE_BUTTON_CATALOG.find((b) => b.type === type);
 }
 
-/** First-run panel — scroll wheel anchored bottom-left, keyboard bottom-right. */
+/** First-run panel — scroll wheel anchored bottom-left, keyboard bottom-right,
+ * both sitting on the same bottom band. (Scroll wheel is a taller pill, so its
+ * center sits a little higher to keep the two labels level.) */
 export const DEFAULT_MOUSE_BUTTONS: MouseButtonInstance[] = [
-  { id: 'default-scroll', type: 'scrollWheel', x: 14, y: 74 },
-  { id: 'default-keyboard', type: 'keyboard', x: 86, y: 84 },
+  { id: 'default-scroll', type: 'scrollWheel', x: 16, y: 74 },
+  { id: 'default-keyboard', type: 'keyboard', x: 84, y: 82 },
 ];
 
 const DEFAULT_COLS = 4;

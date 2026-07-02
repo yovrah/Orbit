@@ -145,11 +145,23 @@ A native iOS app with built-in Wake-on-LAN is the top item on the roadmap.
 
 ## Roadmap
 
-- [ ] Native iOS app (Wake-on-LAN, haptics, background audio)
-- [ ] Lower-latency video streaming (WebRTC)
-- [ ] Multi-monitor stream switching UI
-- [ ] Clipboard history sync
-- [ ] Gamepad improvements
+The big ones (what donations unlock):
+
+- [ ] **One-tap Wake-on-LAN** — turn your PC *on* from your phone, even when it's fully off. Needs a native app (browsers can't send WoL packets).
+- [ ] **Home Screen & Lock Screen widgets** — power on/off, lock, volume and a live PC glance without even opening the app (iOS WidgetKit / Android widgets).
+- [ ] **Native iOS & Android apps** — App Store / Play Store release, haptics, background audio, proper push.
+- [ ] **Control your PC from anywhere** — optional secure relay so it works off your home Wi-Fi, not just LAN.
+
+Nice-to-haves:
+
+- [ ] Lower-latency screen streaming over WebRTC (+ mic/2-way audio)
+- [ ] Multi-monitor picker in the stream view
+- [ ] Siri Shortcuts / Google Assistant ("Hey Siri, lock my PC")
+- [ ] Wear OS / Apple Watch quick actions
+- [ ] Encrypted clipboard & file history sync
+- [ ] Shareable widget/layout presets
+
+Vote for what you want most in the [issues](https://github.com/yovrah/orbit/issues) — the list is driven by what people actually ask for.
 
 ## Tech stack
 
