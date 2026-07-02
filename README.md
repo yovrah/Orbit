@@ -147,9 +147,9 @@ A native iOS app with built-in Wake-on-LAN is the top item on the roadmap.
 
 The big ones (what donations unlock):
 
+- [ ] **Native iOS & Android apps** — App Store / Play Store release, haptics, background audio, proper push.
 - [ ] **One-tap Wake-on-LAN** — turn your PC *on* from your phone, even when it's fully off. Needs a native app (browsers can't send WoL packets).
 - [ ] **Home Screen & Lock Screen widgets** — power on/off, lock, volume and a live PC glance without even opening the app (iOS WidgetKit / Android widgets).
-- [ ] **Native iOS & Android apps** — App Store / Play Store release, haptics, background audio, proper push.
 - [ ] **Control your PC from anywhere** — optional secure relay so it works off your home Wi-Fi, not just LAN.
 
 Nice-to-haves:
