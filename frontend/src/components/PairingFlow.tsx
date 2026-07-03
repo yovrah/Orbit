@@ -152,18 +152,44 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
 
       const data = await response.json();
       if (data.status === 'paired') {
-        await db.devices.add({
-          uuid: clientUuid,
-          name: pairingDevice.name,
-          ipAddress: targetUrl,
-          port: pairingDevice.port,
-          macAddress: data.mac_address || '00:00:00:00:00:00',
-          osName: pairingDevice.os,
-          osVersion: pairingDevice.version,
-          sharedSecret: data.encrypted_shared_secret,
-          isPaired: true,
-          lastConnected: new Date(),
-        });
+        const mac = data.mac_address || '00:00:00:00:00:00';
+
+        // Re-pairing the same physical PC (same MAC, or same address when the
+        // MAC is unknown) must update its entry, not add a duplicate — pairing
+        // via localhost, 127.0.0.1 and the LAN IP is still one computer.
+        // (macAddress is not a Dexie index — filter() instead of where().)
+        const existing =
+          (mac !== '00:00:00:00:00:00'
+            ? await db.devices.filter((d) => d.macAddress === mac).first()
+            : undefined) || (await db.devices.where('ipAddress').equals(targetUrl).first());
+
+        if (existing) {
+          await db.devices.update(existing.id!, {
+            uuid: clientUuid, // the agent registered this pairing under the new id
+            name: pairingDevice.name,
+            ipAddress: targetUrl,
+            port: pairingDevice.port,
+            macAddress: mac,
+            osName: pairingDevice.os,
+            osVersion: pairingDevice.version,
+            sharedSecret: data.encrypted_shared_secret,
+            isPaired: true,
+            lastConnected: new Date(),
+          });
+        } else {
+          await db.devices.add({
+            uuid: clientUuid,
+            name: pairingDevice.name,
+            ipAddress: targetUrl,
+            port: pairingDevice.port,
+            macAddress: mac,
+            osName: pairingDevice.os,
+            osVersion: pairingDevice.version,
+            sharedSecret: data.encrypted_shared_secret,
+            isPaired: true,
+            lastConnected: new Date(),
+          });
+        }
 
         // Make the newly paired device the active one immediately.
         onPaired?.(clientUuid);
