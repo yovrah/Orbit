@@ -47,6 +47,10 @@ interface OrbitContextValue {
   // Devices & connection
   activeDevice: Device | null;
   devices: Device[];
+  /** False until the device list has actually been read from IndexedDB.
+   * Distinguishes "still loading" from "genuinely no devices" — first-run UI
+   * must not flash while the list is merely pending. */
+  devicesLoaded: boolean;
   isConnected: boolean;
   isAuthorized: boolean;
   /** True when the active device is connected AND authorized — safe to send input. */
@@ -91,8 +95,10 @@ export function OrbitProvider({ children, onOpenPairing, onOpenSettings }: Orbit
   const [kbLayout, setKbLayoutState] = useState<KbLayout>('en');
   const [audioEnabled, setAudioEnabled] = useState(false);
 
-  // Devices ordered most-recently-connected first.
-  const devices = useLiveQuery(() => db.devices.orderBy('lastConnected').reverse().toArray()) || [];
+  // Devices ordered most-recently-connected first. undefined = still loading.
+  const devicesRaw = useLiveQuery(() => db.devices.orderBy('lastConnected').reverse().toArray());
+  const devices = devicesRaw ?? [];
+  const devicesLoaded = devicesRaw !== undefined;
 
   // Explicitly selected device by UUID (stable across unrelated db writes).
   const [activeUuid, setActiveUuid] = useState<string | null>(null);
@@ -282,9 +288,27 @@ export function OrbitProvider({ children, onOpenPairing, onOpenSettings }: Orbit
         const secret: string = data.encrypted_shared_secret;
         const mac: string = data.mac_address || '00:00:00:00:00:00';
 
+        // The agent knows its real hostname/OS — a device list full of
+        // identical "My PC" entries is useless with more than one computer.
+        let pcName = 'My PC';
+        let pcOs = 'Windows';
+        let pcVersion = '';
+        try {
+          const pingRes = await fetch(`${origin}/api/v1/ping`);
+          if (pingRes.ok) {
+            const ping = await pingRes.json();
+            if (ping.agent_name) pcName = ping.agent_name;
+            if (ping.os) pcOs = ping.os;
+            if (ping.version) pcVersion = ping.version;
+          }
+        } catch {
+          /* keep the generic fallbacks */
+        }
+
         if (existing) {
           await db.devices.update(existing.id!, {
             sharedSecret: secret,
+            name: existing.name === 'My PC' ? pcName : existing.name,
             macAddress:
               existing.macAddress && existing.macAddress !== '00:00:00:00:00:00'
                 ? existing.macAddress
@@ -295,12 +319,12 @@ export function OrbitProvider({ children, onOpenPairing, onOpenSettings }: Orbit
         } else {
           await db.devices.add({
             uuid: clientId,
-            name: 'My PC',
+            name: pcName,
             ipAddress: origin,
             port: 23810,
             macAddress: mac,
-            osName: 'Windows',
-            osVersion: '1.0.0',
+            osName: pcOs,
+            osVersion: pcVersion,
             sharedSecret: secret,
             isPaired: true,
             lastConnected: new Date(),
@@ -393,6 +417,7 @@ export function OrbitProvider({ children, onOpenPairing, onOpenSettings }: Orbit
     () => ({
       activeDevice,
       devices,
+      devicesLoaded,
       isConnected,
       isAuthorized,
       isReady,
@@ -414,6 +439,7 @@ export function OrbitProvider({ children, onOpenPairing, onOpenSettings }: Orbit
     [
       activeDevice,
       devices,
+      devicesLoaded,
       isConnected,
       isAuthorized,
       isReady,

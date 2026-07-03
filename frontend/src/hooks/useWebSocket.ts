@@ -200,6 +200,31 @@ export function useWebSocket(device: Device | null) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device?.uuid]);
 
+  // Mobile OSes kill the socket while the PWA is backgrounded, and the
+  // exponential backoff above can be sitting on a 30s timer when the user
+  // reopens the app. Returning to the foreground (or the network coming back)
+  // must reconnect NOW, not when the backoff happens to expire.
+  useEffect(() => {
+    const resume = () => {
+      if (document.visibilityState !== 'visible') return;
+      const dev = deviceRef.current;
+      if (!dev) return;
+      const state = wsRef.current?.readyState;
+      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
+      reconnectAttemptRef.current = 0;
+      clearReconnectTimer();
+      connectRef.current(genRef.current, dev.uuid);
+    };
+    document.addEventListener('visibilitychange', resume);
+    window.addEventListener('online', resume);
+    window.addEventListener('focus', resume);
+    return () => {
+      document.removeEventListener('visibilitychange', resume);
+      window.removeEventListener('online', resume);
+      window.removeEventListener('focus', resume);
+    };
+  }, [clearReconnectTimer]);
+
   const sendEvent = useCallback((eventPayload: object) => {
     if (
       wsRef.current &&

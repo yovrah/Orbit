@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   CheckCircle,
   Laptop,
+  Loader2,
   Plus,
   RefreshCw,
   Search,
@@ -39,6 +40,10 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
   const [clientUuid, setClientUuid] = useState('');
   const [step, setStep] = useState<'select' | 'pin' | 'success' | 'error'>('select');
   const [errorMessage, setErrorMessage] = useState('');
+  const [manualError, setManualError] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [isChecking, setIsChecking] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const getBaseUrl = (ipOrUrl: string) => {
     const trimmed = ipOrUrl.trim();
@@ -48,6 +53,7 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
 
   const initiatePairing = async (device: DiscoveredDevice) => {
     setPairingDevice(device);
+    setIsChecking(true);
     try {
       setErrorMessage('');
       const newClientUuid = generateUUID();
@@ -74,14 +80,18 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to connect to Orbit Agent.');
       setStep('error');
+    } finally {
+      setIsChecking(false);
     }
   };
 
   const handleManualAdd = async () => {
-    if (!manualIp.trim()) return;
+    const ip = manualIp.trim();
+    if (!ip || isChecking) return;
+    setManualError('');
+    setIsChecking(true);
     try {
-      setErrorMessage('');
-      const targetUrl = getBaseUrl(manualIp);
+      const targetUrl = getBaseUrl(ip);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000);
       const response = await fetch(`${targetUrl}/api/v1/ping`, {
@@ -90,9 +100,9 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
       });
       clearTimeout(timeoutId);
       const data = await response.json();
-      if (data.status !== 'online') throw new Error('Device is offline.');
+      if (data.status !== 'online') throw new Error('offline');
 
-      initiatePairing({
+      await initiatePairing({
         ip: targetUrl,
         port: 23810,
         name: data.agent_name,
@@ -101,13 +111,17 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
         paired: data.paired,
       });
     } catch {
-      setErrorMessage('Failed to connect to host. Make sure Orbit Agent is running on the PC.');
-      setStep('error');
+      // Stay on this step — the user most likely just mistyped the IP.
+      setManualError(`Can't reach ${ip}. Check the address and make sure Orbit Agent is running on that PC.`);
+    } finally {
+      setIsChecking(false);
     }
   };
 
-  const verifyPin = async () => {
-    if (!pairingDevice || !pin.trim()) return;
+  const verifyPin = async (pinValue?: string) => {
+    const code = (pinValue ?? pin).trim();
+    if (!pairingDevice || code.length < 6 || isVerifying) return;
+    setIsVerifying(true);
     try {
       setErrorMessage('');
       const targetUrl = getBaseUrl(pairingDevice.ip);
@@ -117,11 +131,24 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pairing_session_token: sessionToken,
-          pin,
+          pin: code,
         }),
       });
 
-      if (!response.ok) throw new Error('Invalid pairing PIN code.');
+      if (!response.ok) {
+        const err = await response.json().catch(() => null);
+        const detail: string = err?.detail || 'Invalid pairing PIN code.';
+        // A wrong PIN keeps the pairing session alive on the agent (it allows
+        // several attempts) — stay on this step and let the user retype
+        // instead of bouncing them to a dead-end error screen.
+        if (response.status === 400 && /invalid/i.test(detail)) {
+          setPin('');
+          setPinError('Wrong code — check the number on the PC screen and try again.');
+          return;
+        }
+        throw new Error(detail);
+      }
+      setPinError('');
 
       const data = await response.json();
       if (data.status === 'paired') {
@@ -146,6 +173,8 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
     } catch (error: any) {
       setErrorMessage(error.message || 'Error verifying PIN code.');
       setStep('error');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -188,21 +217,37 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 12 }}
             >
-              <div className="flex gap-2">
-                <input
-                  value={manualIp}
-                  onChange={(event) => setManualIp(event.target.value)}
-                  placeholder="192.168.1.100"
-                  className="min-w-0 flex-1 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 text-sm font-bold text-[#17181c] outline-none placeholder:text-[#9aa3b0] focus:border-[#007aff]"
-                />
-                <button
-                  type="button"
-                  onClick={handleManualAdd}
-                  className="grid h-12 w-12 place-items-center rounded-2xl bg-[#007aff] text-white shadow-lg shadow-blue-500/20"
-                  aria-label="Add manually"
-                >
-                  <Plus size={19} />
-                </button>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex gap-2">
+                  <input
+                    value={manualIp}
+                    onChange={(event) => {
+                      setManualIp(event.target.value);
+                      if (manualError) setManualError('');
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') handleManualAdd();
+                    }}
+                    inputMode="decimal"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="192.168.1.100"
+                    className="min-w-0 flex-1 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 text-sm font-bold text-[#17181c] outline-none placeholder:text-[#9aa3b0] focus:border-[#007aff]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleManualAdd}
+                    disabled={isChecking}
+                    className="grid h-12 w-12 place-items-center rounded-2xl bg-[#007aff] text-white shadow-lg shadow-blue-500/20 disabled:opacity-60"
+                    aria-label="Add manually"
+                  >
+                    {isChecking ? <Loader2 size={19} className="spin" /> : <Plus size={19} />}
+                  </button>
+                </div>
+                {manualError && (
+                  <p className="m-0 px-1 text-xs font-bold text-[#c22b22]">{manualError}</p>
+                )}
               </div>
 
               <div className="flex items-center justify-between">
@@ -230,7 +275,8 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
                       key={`${device.ip}-${device.name}`}
                       type="button"
                       onClick={() => initiatePairing(device)}
-                      className="flex w-full items-center gap-3 rounded-[20px] p-3 text-left transition hover:bg-white/60"
+                      disabled={isChecking}
+                      className="flex w-full items-center gap-3 rounded-[20px] p-3 text-left transition hover:bg-white/60 disabled:opacity-60"
                     >
                       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#007aff] text-white">
                         <Laptop size={19} />
@@ -240,7 +286,7 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
                         <small className="block truncate text-xs font-bold text-[#7b8491]">{device.ip}</small>
                       </span>
                       <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-black text-[#007aff]">
-                        Pair
+                        {isChecking && pairingDevice?.ip === device.ip ? <Loader2 size={14} className="spin" /> : 'Pair'}
                       </span>
                     </button>
                   ))
@@ -258,12 +304,25 @@ export default function PairingFlow({ onClose, onSuccess, onPaired }: PairingFlo
                 value={pin}
                 maxLength={6}
                 inputMode="numeric"
-                onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))}
+                autoFocus
+                onChange={(event) => {
+                  const next = event.target.value.replace(/\D/g, '');
+                  setPin(next);
+                  // All six digits typed — no need to make the user find Confirm.
+                  if (next.length === 6) verifyPin(next);
+                }}
                 placeholder="000000"
-                className="mx-auto w-52 border-0 border-b-2 border-[#007aff] bg-transparent py-2 text-center text-3xl font-black tracking-[8px] text-[#17181c] outline-none"
+                className={`mx-auto w-52 border-0 border-b-2 bg-transparent py-2 text-center text-3xl font-black tracking-[8px] text-[#17181c] outline-none ${pinError ? 'border-[#ff3b30]' : 'border-[#007aff]'}`}
               />
-              <button type="button" onClick={verifyPin} className="rounded-2xl bg-[#007aff] py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20">
-                Confirm
+              {pinError && <p className="m-0 text-xs font-bold text-[#c22b22]">{pinError}</p>}
+              <button
+                type="button"
+                onClick={() => verifyPin()}
+                disabled={isVerifying}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-[#007aff] py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 disabled:opacity-60"
+              >
+                {isVerifying && <Loader2 size={16} className="spin" />}
+                {isVerifying ? 'Pairing…' : 'Confirm'}
               </button>
             </motion.div>
           )}
