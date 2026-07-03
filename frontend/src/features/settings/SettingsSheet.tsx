@@ -12,11 +12,13 @@ import {
   Clipboard,
   Send,
   ChevronRight,
+  Download,
   Info,
   Coffee,
 } from 'lucide-react';
 import { db } from '../../db/clientDb';
 import { useOrbit } from '../../state/OrbitContext';
+import { SHOW_INSTALL_EVENT } from '../../components/InstallPrompt';
 import type { Device } from '../../types';
 import type { ToolId } from './ToolSheets';
 
@@ -24,6 +26,13 @@ interface SettingsSheetProps {
   onClose: () => void;
   onOpenPairing: () => void;
   onOpenTool: (tool: ToolId) => void;
+}
+
+function isStandaloneApp(): boolean {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true
+  );
 }
 
 async function clearPWACache() {
@@ -267,8 +276,22 @@ export function SettingsSheet({ onClose, onOpenPairing, onOpenTool }: SettingsSh
             <div className="set-row">
               <span className="r-ico"><Info size={17} /></span>
               <span className="r-name">About Orbit</span>
-              <span className="r-val">v1.0.1</span>
+              <span className="r-val">v1.0.2</span>
             </div>
+            {!isStandaloneApp() && (
+              <button
+                type="button"
+                className="set-row"
+                onClick={() => {
+                  onClose();
+                  window.dispatchEvent(new Event(SHOW_INSTALL_EVENT));
+                }}
+              >
+                <span className="r-ico"><Download size={17} /></span>
+                <span className="r-name">Install App</span>
+                <span className="r-val">Add to Home Screen</span>
+              </button>
+            )}
             <button
               type="button"
               className="set-row"

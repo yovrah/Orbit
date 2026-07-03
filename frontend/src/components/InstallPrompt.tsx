@@ -6,6 +6,10 @@ import { db } from '../db/clientDb';
 
 const DISMISS_KEY = 'install_prompt_dismissed';
 
+/** Re-open the install sheet on demand (e.g. from Settings) — dismissing the
+ * first-run nudge is permanent, so users need a way back to the instructions. */
+export const SHOW_INSTALL_EVENT = 'orbit:show-install';
+
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
@@ -21,11 +25,17 @@ function isStandalone(): boolean {
 
 const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 
+interface InstallPromptProps {
+  /** Gate for the automatic first-open nudge (e.g. "user has a paired PC").
+   * The Settings-triggered SHOW_INSTALL_EVENT works regardless. */
+  enabled?: boolean;
+}
+
 /** First-open nudge to add Orbit to the home screen. iOS Safari can't trigger a
  * native install, so we show the Share → Add to Home Screen steps; Android/Chrome
  * fires `beforeinstallprompt`, which we defer and fire from an Install button.
  * Hidden once installed (standalone) or dismissed. */
-export function InstallPrompt() {
+export function InstallPrompt({ enabled = true }: InstallPromptProps) {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -38,19 +48,33 @@ export function InstallPrompt() {
     };
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
 
-    // Show only if the user hasn't dismissed it before, after a short beat so it
-    // doesn't fight the app's first paint.
+    const onShowRequest = () => setVisible(true);
+    window.addEventListener(SHOW_INSTALL_EVENT, onShowRequest);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      window.removeEventListener(SHOW_INSTALL_EVENT, onShowRequest);
+    };
+  }, []);
+
+  // Auto-nudge only when allowed, not dismissed before, and after a short beat
+  // so it doesn't fight the app's first paint.
+  useEffect(() => {
+    if (!enabled || isStandalone()) return;
+    let cancelled = false;
+    let timer: number | undefined;
     db.settings.get(DISMISS_KEY).then((row) => {
-      if (row?.value) return;
-      // On desktop with no install event and no iOS, there's nothing to guide.
-      const timer = setTimeout(() => {
+      if (cancelled || row?.value) return;
+      timer = window.setTimeout(() => {
+        // On desktop with no install event and no iOS, there's nothing to guide.
         if (isIOS || 'onbeforeinstallprompt' in window) setVisible(true);
       }, 1200);
-      return () => clearTimeout(timer);
     });
-
-    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-  }, []);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [enabled]);
 
   const dismiss = () => {
     setVisible(false);
@@ -107,7 +131,7 @@ export function InstallPrompt() {
               <div className="install-step">
                 <span className="install-step-ico"><Share size={17} /></span>
                 <span>
-                  Tap the <strong>Share</strong> button in Safari's toolbar
+                  Tap the <strong>Share</strong> button in your browser's toolbar
                 </span>
               </div>
               <div className="install-step">

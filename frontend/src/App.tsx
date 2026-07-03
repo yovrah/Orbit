@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 
+import { useLiveQuery } from 'dexie-react-hooks';
+
 import { OrbitProvider, useOrbit } from './state/OrbitContext';
+import { db } from './db/clientDb';
 import { useScrollFade } from './hooks/useScrollFade';
 import { Navbar } from './components/Navbar';
 import { AudioPlayer } from './components/AudioPlayer';
-import { Onboarding } from './components/Onboarding';
+import { Onboarding, ONBOARDING_SEEN_KEY } from './components/Onboarding';
 import { InstallPrompt } from './components/InstallPrompt';
 import PairingFlow from './components/PairingFlow';
 import { DashboardTab } from './features/dashboard/DashboardTab';
@@ -33,9 +36,19 @@ function AppShell({
   activeTool,
   setActiveTool,
 }: ShellProps) {
-  const { devices, setActiveDeviceUuid } = useOrbit();
+  const { devices, devicesLoaded, setActiveDeviceUuid } = useOrbit();
   const [activeView, setActiveView] = useState<View>('dashboard');
   const { ref: stageRef, hasMore: hasMoreBelow } = useScrollFade<HTMLElement>();
+
+  // undefined = still reading, null = never seen, 'true' = seen. Resolving
+  // this OUTSIDE the Onboarding component keeps its mount/unmount decision
+  // synchronous — see the ghost-overlay note in Onboarding.tsx.
+  const onboardingSeen = useLiveQuery(
+    async () => (await db.settings.get(ONBOARDING_SEEN_KEY))?.value ?? null,
+    []
+  );
+  const showOnboarding =
+    devicesLoaded && devices.length === 0 && !showPairing && onboardingSeen === null;
 
   return (
     <div className="app-shell">
@@ -60,9 +73,7 @@ function AppShell({
 
       {/* Mounted only pre-pairing so a returning user never risks a flash. */}
       <AnimatePresence>
-        {devices.length === 0 && !showPairing && (
-          <Onboarding onScanQr={() => setShowPairing(true)} />
-        )}
+        {showOnboarding && <Onboarding onScanQr={() => setShowPairing(true)} />}
       </AnimatePresence>
 
       <AnimatePresence>
@@ -98,7 +109,9 @@ function AppShell({
         {activeTool && <ToolSheets tool={activeTool} onClose={() => setActiveTool(null)} />}
       </AnimatePresence>
 
-      <InstallPrompt />
+      {/* Nudge installation only once the user actually has a paired PC —
+          never on top of onboarding/pairing, and pairing first matters more. */}
+      <InstallPrompt enabled={devicesLoaded && devices.length > 0} />
 
       <AudioPlayer />
     </div>

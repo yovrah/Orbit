@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { QrCode, MonitorSmartphone, Mouse } from 'lucide-react';
 import { db } from '../db/clientDb';
 
-const SEEN_KEY = 'onboarding_seen';
+export const ONBOARDING_SEEN_KEY = 'onboarding_seen';
 
 interface OnboardingProps {
   onScanQr: () => void;
@@ -15,24 +14,15 @@ const STEPS = [
   { icon: Mouse, text: 'Control the mouse, screen and files instantly' },
 ];
 
-/** One-time full-screen welcome shown before the very first pairing. Mounted
- * only while there are zero known devices, so a returning user never risks
- * seeing it flash — see the mount condition in App.tsx. */
+/** One-time full-screen welcome shown before the very first pairing.
+ *
+ * Whether to show it is decided ENTIRELY by the mount condition in App.tsx
+ * (devices loaded + none paired + not seen). Deciding visibility with async
+ * state in here used to race AnimatePresence: if the device list resolved
+ * while this still rendered null, the exit pass had nothing to remove and a
+ * ghost onboarding stuck on screen over a fully working app. */
 export function Onboarding({ onScanQr }: OnboardingProps) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    db.settings.get(SEEN_KEY).then((row) => {
-      if (!row?.value) setVisible(true);
-    });
-  }, []);
-
-  const dismiss = () => {
-    setVisible(false);
-    db.settings.put({ key: SEEN_KEY, value: 'true' });
-  };
-
-  if (!visible) return null;
+  const markSeen = () => db.settings.put({ key: ONBOARDING_SEEN_KEY, value: 'true' });
 
   return (
     <motion.div
@@ -64,14 +54,14 @@ export function Onboarding({ onScanQr }: OnboardingProps) {
         <button
           type="button"
           onClick={() => {
-            dismiss();
+            markSeen();
             onScanQr();
           }}
           className="bg-[#007aff] text-white font-black text-sm py-3.5 rounded-2xl active:scale-95 transition-transform shadow-lg shadow-blue-500/20"
         >
-          Scan QR Code
+          Connect to PC
         </button>
-        <button type="button" onClick={dismiss} className="text-[#8c94a0] font-bold text-xs py-2">
+        <button type="button" onClick={markSeen} className="text-[#8c94a0] font-bold text-xs py-2">
           Skip for now
         </button>
       </div>
