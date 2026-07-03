@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
 
         print_qr_code(pair_url, local_url, hostname_url)
 
-        desc = {'os': 'Windows', 'version': '1.0.1', 'path': '/api/v1'}
+        desc = {'os': 'Windows', 'version': '1.0.2', 'path': '/api/v1'}
         info = ServiceInfo(
             "_orbit-control._tcp.local.",
             f"{hostname}._orbit-control._tcp.local.",
@@ -113,16 +113,23 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Error closing mDNS: {e}")
 
-app = FastAPI(title="Orbit Remote Agent", version="1.0.1", lifespan=lifespan)
+app = FastAPI(title="Orbit Remote Agent", version="1.0.2", lifespan=lifespan)
 
-# The PWA is served by this same agent, so every request the app makes is
-# same-origin and needs no CORS grant. The previous wildcard LAN/`.local`
-# allow-list let any web page on the network read agent responses (secrets,
-# pairing token, file contents) — so we deliberately expose NO cross-origin
-# access. Same-origin requests are unaffected.
+# The phone app pairs with (and switches between) multiple PCs from a single
+# installed PWA, which stays pinned to whichever PC's origin it was first
+# opened from — so reaching any *other* paired PC's agent is a genuine
+# cross-origin fetch and needs a CORS grant, not just same-origin.
+#
+# This is safe to open wide because CORS is not the security boundary here:
+# there are no cookies anywhere (auth is a per-device HMAC signature in the
+# Authorization header, or a PIN read off the physical screen), so a hostile
+# origin gains no ambient authority from a wildcard grant. The endpoints that
+# used to leak secrets to any LAN origin (`/pair/token`, `/local/secret`) are
+# independently locked to loopback-only requests, which a CORS allow-list
+# can't do anyway (any device can just curl them directly).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -323,7 +330,7 @@ def ping():
         "status": "online",
         "agent_name": platform.node() or "My PC",
         "os": f"{platform.system()} {platform.release()}",
-        "version": "1.0.1",
+        "version": "1.0.2",
         "paired": False,
         "mac_address": get_mac_address()
     }
@@ -334,6 +341,12 @@ def ping():
 PIN_TTL = 120  # seconds
 PIN_MAX_TRIES = 5
 PENDING_PINS = {}  # session_token -> {"expires": epoch, "tries": int}
+
+# Set by the tray launcher. The shipped exe is windowed (console=False), so a
+# print()ed PIN is displayed NOWHERE and PIN pairing is impossible to complete
+# without these — the tray shows/hides the code in a desktop window instead.
+PIN_SHOW_HOOK = None  # Callable[[str, str], None]: (pin, client_name)
+PIN_HIDE_HOOK = None  # Callable[[], None]
 
 @app.post("/api/v1/pair/initiate")
 def pair_initiate(req: PairInitiateRequest):
@@ -352,6 +365,12 @@ def pair_initiate(req: PairInitiateRequest):
     print("\n" + "=" * 50, flush=True)
     print(f"            ORBIT PAIRING CODE: {pin}            ", flush=True)
     print("=" * 50 + "\n", flush=True)
+
+    if PIN_SHOW_HOOK:
+        try:
+            PIN_SHOW_HOOK(pin, req.client_name)
+        except Exception as e:
+            print(f"PIN window failed: {e!r}")
 
     return {
         "status": "pending_pin",
@@ -380,7 +399,13 @@ def pair_verify(req: PairVerifyRequest):
         raise HTTPException(status_code=400, detail="Invalid pairing PIN code")
 
     PENDING_PINS.pop(req.pairing_session_token, None)
-        
+
+    if PIN_HIDE_HOOK:
+        try:
+            PIN_HIDE_HOOK()
+        except Exception:
+            pass
+
     shared_secret = base64.b64encode(secrets.token_bytes(32)).decode('utf-8')
     
     models.add_paired_client(

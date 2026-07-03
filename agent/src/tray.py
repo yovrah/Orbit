@@ -150,6 +150,80 @@ class QrWindow:
             return
         self._root.after(0, self._refresh_and_show)
 
+    # --- PIN pairing window -------------------------------------------------
+    # The windowed exe has no console, so the PIN printed by the API would be
+    # displayed nowhere and PIN pairing would be impossible to complete.
+
+    def _build_pin_window(self):
+        tk = self._tk
+        top = tk.Toplevel(self._root)
+        top.withdraw()
+        top.title("Orbit — Pairing code")
+        top.configure(bg=DARK_BG)
+        top.resizable(False, False)
+        top.protocol("WM_DELETE_WINDOW", top.withdraw)
+
+        card = tk.Frame(top, bg=CARD_BG, padx=32, pady=26)
+        card.pack(padx=18, pady=18)
+
+        self._pin_who = tk.StringVar(value="A phone is trying to pair")
+        tk.Label(card, textvariable=self._pin_who, bg=CARD_BG, fg=INK,
+                 font=("Segoe UI", 13, "bold"), wraplength=320).pack()
+        tk.Label(card, text="Enter this code on the phone to finish pairing:",
+                 bg=CARD_BG, fg=MUTED, font=("Segoe UI", 9)).pack(pady=(4, 14))
+
+        self._pin_var = tk.StringVar(value="")
+        tk.Label(card, textvariable=self._pin_var, bg=CARD_BG, fg=BLUE,
+                 font=("Consolas", 40, "bold")).pack()
+
+        tk.Label(card, text="The code expires in 2 minutes. Close this window to ignore.",
+                 bg=CARD_BG, fg=MUTED, font=("Segoe UI", 8)).pack(pady=(14, 0))
+        return top
+
+    def _show_pin_now(self, pin: str, client_name: str):
+        try:
+            if getattr(self, "_pin_top", None) is None or not self._pin_top.winfo_exists():
+                self._pin_top = self._build_pin_window()
+            top = self._pin_top
+            self._pin_who.set(f"“{client_name}” is trying to pair")
+            self._pin_var.set(" ".join(pin))
+
+            top.deiconify()
+            top.lift()
+            top.attributes("-topmost", True)
+            top.after(300, lambda: top.attributes("-topmost", False))
+            top.update_idletasks()
+            w, h = top.winfo_width(), top.winfo_height()
+            x = (top.winfo_screenwidth() - w) // 2
+            y = (top.winfo_screenheight() - h) // 2
+            top.geometry(f"+{x}+{y}")
+
+            # Auto-hide when the PIN itself expires on the agent side.
+            if getattr(self, "_pin_after_id", None):
+                top.after_cancel(self._pin_after_id)
+            self._pin_after_id = top.after(main.PIN_TTL * 1000, top.withdraw)
+        except Exception as e:
+            print(f"Unable to show PIN window: {e!r}")
+
+    def _hide_pin_now(self):
+        try:
+            if getattr(self, "_pin_top", None) is not None and self._pin_top.winfo_exists():
+                self._pin_top.withdraw()
+        except Exception:
+            pass
+
+    def show_pin(self, pin: str, client_name: str):
+        if not self._ready.wait(5) or self._root is None:
+            return
+        self._root.after(0, lambda: self._show_pin_now(pin, client_name))
+
+    def hide_pin(self):
+        if self._ready.is_set() and self._root is not None:
+            try:
+                self._root.after(0, self._hide_pin_now)
+            except Exception:
+                pass
+
     def destroy(self):
         if self._ready.is_set() and self._root is not None:
             try:
@@ -180,6 +254,11 @@ def main_tray():
 
     server = run_server()
     qr_window = QrWindow()
+
+    # Let the API surface pairing PINs in a desktop window — without this the
+    # windowed exe would show the code nowhere (see main.PIN_SHOW_HOOK).
+    main.PIN_SHOW_HOOK = qr_window.show_pin
+    main.PIN_HIDE_HOOK = qr_window.hide_pin
 
     def wait_and_show_qr():
         # Wait for the server (and PAIRING_TOKEN) to come up, then greet the
