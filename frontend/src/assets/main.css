@@ -41,6 +41,10 @@
   --chip: #eef2f8;
   --soft: 0 8px 26px rgba(17, 24, 39, 0.06);
   --soft-sm: 0 2px 10px rgba(17, 24, 39, 0.04);
+  /* CC iOS-style variables */
+  --cc-card-bg: rgba(255, 255, 255, 0.7);
+  --cc-border: rgba(0, 0, 0, 0.06);
+  --cc-btn-bg: rgba(0, 0, 0, 0.05);
 }
 
 /* Dark Theme Variables */
@@ -70,6 +74,10 @@
   --chip: #1c2230;
   --soft: 0 8px 26px rgba(0, 0, 0, 0.4);
   --soft-sm: 0 2px 10px rgba(0, 0, 0, 0.3);
+  /* CC iOS-style variables */
+  --cc-card-bg: rgba(20, 20, 25, 0.6);
+  --cc-border: rgba(255, 255, 255, 0.08);
+  --cc-btn-bg: rgba(255, 255, 255, 0.08);
 }
 
 * {
@@ -152,6 +160,32 @@ input {
   gap: 14px;
   overflow: hidden;
   background: var(--phone-bg);
+}
+
+/* Soft "wallpaper" tints behind the widgets — the frosted-glass cards need
+   something colorful to blur, otherwise they read as flat gray boxes. */
+.phone-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(46% 32% at 12% 6%, rgba(0, 122, 255, 0.16), transparent 70%),
+    radial-gradient(42% 30% at 90% 32%, rgba(175, 82, 222, 0.13), transparent 70%),
+    radial-gradient(50% 34% at 46% 96%, rgba(52, 199, 89, 0.13), transparent 72%);
+}
+
+.theme-dark .phone-frame::before {
+  background:
+    radial-gradient(46% 32% at 12% 6%, rgba(10, 132, 255, 0.2), transparent 70%),
+    radial-gradient(42% 30% at 90% 32%, rgba(191, 90, 242, 0.15), transparent 70%),
+    radial-gradient(50% 34% at 46% 96%, rgba(48, 209, 88, 0.13), transparent 72%);
+}
+
+.phone-frame > * {
+  position: relative;
+  z-index: 1;
 }
 
 .top-bar {
@@ -2240,11 +2274,14 @@ input {
   flex-direction: column;
   gap: 8px;
   padding: 14px;
-  border-radius: 20px;
-  background: var(--card);
-  border: 1px solid var(--hair);
+  border-radius: 26px; /* iOS rounded superellipse look */
+  background: var(--cc-card-bg, var(--card));
+  border: 1px solid var(--cc-border, var(--hair));
+  backdrop-filter: blur(20px) saturate(190%);
+  -webkit-backdrop-filter: blur(20px) saturate(190%);
   box-shadow: var(--soft-sm);
   overflow: hidden;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 
 .widget-card.bare {
@@ -2252,6 +2289,9 @@ input {
   background: transparent;
   border: none;
   box-shadow: none;
+  /* a transparent card would still frost a rectangle of the backdrop */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .widget-card.pinned-apps {
@@ -2440,8 +2480,10 @@ input {
   padding: 10px;
 }
 
+/* No header row at all on slim sliders — the iPhone CC pill is just the tall
+   track with one glyph at the bottom. Mute stays available in the Media widget. */
 .widget-card.slim .w-vslider-head {
-  justify-content: center;
+  display: none;
 }
 
 .widget-card.slim .w-mini-val {
@@ -3067,3 +3109,169 @@ input {
   transform: translate(-50%, -50%);
   background: radial-gradient(circle, rgba(0, 122, 255, 0.45), rgba(0, 122, 255, 0) 70%);
 }
+
+/* ============================================================= */
+/* iOS 18 Control Center redone additions                         */
+/* ============================================================= */
+
+.cc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 6px 4px;
+  min-height: 52px;
+}
+
+.cc-head-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--cc-card-bg);
+  border: 1px solid var(--cc-border);
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.15s, background-color 0.15s;
+}
+
+.cc-head-btn:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.cc-btn-power {
+  color: var(--red);
+}
+
+.cc-btn-plus {
+  background: var(--blue);
+  color: #fff;
+  border-color: transparent;
+}
+.cc-btn-plus:active {
+  background: #0066d6;
+}
+
+.cc-btn-done {
+  background: var(--green);
+  color: #fff;
+  border-color: transparent;
+}
+.cc-btn-done:active {
+  background: #28a745;
+}
+
+.cc-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--cc-card-bg);
+  border: 1px solid var(--cc-border);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.cc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.cc-dot.online {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+
+.cc-dot.offline {
+  background: var(--muted);
+}
+
+/* Connectivity & Circle Buttons */
+.cc-circle-btn {
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+
+.cc-circle-btn:active {
+  transform: scale(0.92);
+}
+
+.cc-circle-btn.blue {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.35);
+}
+
+.cc-circle-btn.orange {
+  background: #ff9500;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(255, 149, 0, 0.35);
+}
+
+.cc-circle-btn.green {
+  background: #34c759;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(52, 199, 89, 0.35);
+}
+
+.cc-circle-btn.purple {
+  background: #af52de;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(175, 82, 222, 0.35);
+}
+
+.cc-circle-btn.blue-soft {
+  background: #5ac8fa;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(90, 200, 250, 0.35);
+}
+
+.cc-circle-btn.inactive {
+  background: var(--cc-btn-bg);
+  color: var(--ink);
+}
+
+.cc-circle-btn.dark {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+.theme-light .cc-circle-btn.dark {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.02);
+}
+
+/* Custom Config list highlighted item */
+.set-row.selected-item {
+  background: rgba(0, 122, 255, 0.08);
+}
+.theme-light .set-row.selected-item {
+  background: rgba(0, 122, 255, 0.05);
+}
+
+/* iOS CC sliders: white fill on a frosted track with a dark glyph — the same
+   in both themes, exactly like the iPhone Control Center. */
+.v-slider {
+  background: rgba(90, 100, 120, 0.28) !important;
+}
+.theme-dark .v-slider {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+.v-slider-fill {
+  background: #ffffff;
+}
+.v-slider-icon {
+  color: #3a4150 !important;
+  filter: none;
+}
+

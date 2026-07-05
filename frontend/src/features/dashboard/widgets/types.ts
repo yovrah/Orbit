@@ -11,7 +11,9 @@ export type WidgetType =
   | 'mediaControls'
   | 'macroLauncher'
   | 'appShortcut'
-  | 'trackpad';
+  | 'trackpad'
+  | 'connectivity'
+  | 'circleShortcut';
 
 /** Sizes are expressed against a 4-column grid so a "slim" quarter-width slider
  * (iOS Control-Center style) is possible alongside half- and full-width tiles.

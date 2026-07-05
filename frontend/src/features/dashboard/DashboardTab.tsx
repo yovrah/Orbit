@@ -9,6 +9,7 @@ import { useOsCardVisibility } from './useOsCardVisibility';
 import { HomeGrid } from './widgets/HomeGrid';
 import { AddWidgetSheet } from './widgets/AddWidgetSheet';
 import { QuickActionsConfigSheet } from './widgets/QuickActionsConfigSheet';
+import { CircleShortcutConfigSheet } from './widgets/CircleShortcutConfigSheet';
 import { WakeOnLanSheet } from './WakeOnLanSheet';
 import { OsHeroCard } from './OsHeroCard';
 import type { View } from '../../types';
@@ -45,37 +46,58 @@ export function DashboardTab({ onNavigate }: DashboardTabProps) {
       exit={{ opacity: 0, y: -12 }}
       transition={spring}
     >
-      <ScreenHeader
-        icon={Monitor}
-        title={deviceName}
-        action={
-          <div className="flex items-center gap-2">
-            {editing && (
-              <button
-                type="button"
-                className="h-act"
-                onClick={() => setShowAddWidget(true)}
-                aria-label="Add widget"
-              >
-                <Plus size={20} />
-              </button>
-            )}
+      <header className="cc-header">
+        <div className="cc-header-left">
+          {editing ? (
             <button
               type="button"
-              className={`h-act ${editing ? 'on' : ''}`}
-              onClick={() => setEditing((v) => !v)}
-              aria-label={editing ? 'Done editing' : 'Edit widgets'}
+              className="cc-head-btn cc-btn-plus"
+              onClick={() => setShowAddWidget(true)}
+              aria-label="Add widget"
             >
-              {editing ? <Check size={18} /> : <Pencil size={17} />}
+              <Plus size={22} strokeWidth={2.5} />
             </button>
-            {!editing && (
-              <button type="button" className="h-act danger" onClick={confirmShutdown} aria-label="Power off">
-                <Power size={20} />
-              </button>
-            )}
+          ) : (
+            <button
+              type="button"
+              className="cc-head-btn"
+              onClick={() => setEditing(true)}
+              aria-label="Edit widgets"
+            >
+              <Pencil size={18} strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
+
+        <div className="cc-header-center">
+          <div className="cc-status-pill">
+            <span className={`cc-dot ${activeDevice ? 'online' : 'offline'}`} />
+            <span className="cc-device-name">{deviceName}</span>
           </div>
-        }
-      />
+        </div>
+
+        <div className="cc-header-right">
+          {editing ? (
+            <button
+              type="button"
+              className="cc-head-btn cc-btn-done"
+              onClick={() => setEditing(false)}
+              aria-label="Done editing"
+            >
+              <Check size={19} strokeWidth={3} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="cc-head-btn cc-btn-power"
+              onClick={confirmShutdown}
+              aria-label="Power off"
+            >
+              <Power size={20} strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
+      </header>
 
       <ConnectBanner />
 
@@ -96,6 +118,8 @@ export function DashboardTab({ onNavigate }: DashboardTabProps) {
         onResize={resizeWidget}
         onConfigure={setConfiguringId}
         onNavigateStream={() => onNavigate('stream')}
+        onNavigateTransfer={() => onNavigate('files')}
+        onNavigateMouse={() => onNavigate('mouse')}
         onPowerOn={() => setShowWakeSheet(true)}
       />
 
@@ -110,11 +134,19 @@ export function DashboardTab({ onNavigate }: DashboardTabProps) {
       {showWakeSheet && <WakeOnLanSheet onClose={() => setShowWakeSheet(false)} />}
 
       {configuringWidget && (
-        <QuickActionsConfigSheet
-          instance={configuringWidget}
-          onChange={(actions) => updateWidgetConfig(configuringWidget.id, { actions })}
-          onClose={() => setConfiguringId(null)}
-        />
+        configuringWidget.type === 'circleShortcut' ? (
+          <CircleShortcutConfigSheet
+            instance={configuringWidget}
+            onChange={(action) => updateWidgetConfig(configuringWidget.id, { action })}
+            onClose={() => setConfiguringId(null)}
+          />
+        ) : (
+          <QuickActionsConfigSheet
+            instance={configuringWidget}
+            onChange={(actions) => updateWidgetConfig(configuringWidget.id, { actions })}
+            onClose={() => setConfiguringId(null)}
+          />
+        )
       )}
     </motion.div>
   );

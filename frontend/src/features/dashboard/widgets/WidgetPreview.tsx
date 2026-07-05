@@ -16,6 +16,11 @@ import {
   AppWindow,
   MonitorPlay,
   Mouse,
+  Wifi,
+  Bluetooth,
+  Plane,
+  Radio,
+  CircleDot,
 } from 'lucide-react';
 import type { WidgetType } from './types';
 
@@ -113,6 +118,21 @@ export function WidgetPreview({ type }: { type: WidgetType }) {
       return (
         <div className="wp-screen trackpad">
           <Mouse size={16} />
+        </div>
+      );
+    case 'connectivity':
+      return (
+        <div className="wp-qa" style={{ gap: '4px' }}>
+          <Plane size={8} className="opacity-60" />
+          <Radio size={8} className="opacity-60" />
+          <Wifi size={8} className="opacity-60" />
+          <Bluetooth size={8} className="opacity-60" />
+        </div>
+      );
+    case 'circleShortcut':
+      return (
+        <div className="wp-shortcut">
+          <CircleDot size={17} />
         </div>
       );
     default:

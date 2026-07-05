@@ -9,21 +9,37 @@ import { MediaControlsWidget } from './MediaControlsWidget';
 import { MacroLauncherWidget } from './MacroLauncherWidget';
 import { AppShortcutWidget } from './AppShortcutWidget';
 import { TrackpadWidget } from './TrackpadWidget';
+import { ConnectivityWidget } from './ConnectivityWidget';
+import { CircleShortcutWidget } from './CircleShortcutWidget';
 import type { WidgetInstance } from './types';
 
 interface WidgetRendererProps {
   instance: WidgetInstance;
   editing: boolean;
   onNavigateStream: () => void;
+  onNavigateTransfer: () => void;
+  onNavigateMouse: () => void;
   onPowerOn: () => void;
 }
 
 /** Resolves a widget instance to its content and applies the shared card
  * chrome. Content is pointer-inert while the grid is in edit mode so a drag
  * or a remove tap can never accidentally trigger a widget's own action. */
-export function WidgetRenderer({ instance, editing, onNavigateStream, onPowerOn }: WidgetRendererProps) {
+export function WidgetRenderer({
+  instance,
+  editing,
+  onNavigateStream,
+  onNavigateTransfer,
+  onNavigateMouse,
+  onPowerOn,
+}: WidgetRendererProps) {
+  // Circle shortcuts sit directly on the wallpaper like iOS Control Center
+  // circles — boxing them in a card reads as a button inside a button.
   const isBarePresentation =
-    instance.type === 'screenThumbnail' || instance.type === 'macroLauncher' || instance.type === 'appShortcut';
+    instance.type === 'screenThumbnail' ||
+    instance.type === 'macroLauncher' ||
+    instance.type === 'appShortcut' ||
+    instance.type === 'circleShortcut';
   const extraClass = instance.type === 'pinnedApps' ? 'pinned-apps' : instance.type === 'trackpad' ? 'trackpad' : '';
   const sizeClass = instance.size === 'slim' ? 'slim' : '';
 
@@ -32,12 +48,18 @@ export function WidgetRenderer({ instance, editing, onNavigateStream, onPowerOn 
       className={`widget-card ${isBarePresentation ? 'bare' : ''} ${extraClass} ${sizeClass}`}
       style={editing ? { pointerEvents: 'none' } : undefined}
     >
-      {renderContent(instance, onNavigateStream, onPowerOn)}
+      {renderContent(instance, onNavigateStream, onNavigateTransfer, onNavigateMouse, onPowerOn)}
     </div>
   );
 }
 
-function renderContent(instance: WidgetInstance, onNavigateStream: () => void, onPowerOn: () => void) {
+function renderContent(
+  instance: WidgetInstance,
+  onNavigateStream: () => void,
+  onNavigateTransfer: () => void,
+  onNavigateMouse: () => void,
+  onPowerOn: () => void
+) {
   switch (instance.type) {
     case 'quickActions':
       return <QuickActionsWidget instance={instance} onPowerOn={onPowerOn} />;
@@ -57,6 +79,16 @@ function renderContent(instance: WidgetInstance, onNavigateStream: () => void, o
       return <MediaControlsWidget />;
     case 'trackpad':
       return <TrackpadWidget />;
+    case 'connectivity':
+      return (
+        <ConnectivityWidget
+          onNavigateStream={onNavigateStream}
+          onNavigateTransfer={onNavigateTransfer}
+          onNavigateMouse={onNavigateMouse}
+        />
+      );
+    case 'circleShortcut':
+      return <CircleShortcutWidget instance={instance} />;
     case 'macroLauncher':
       return <MacroLauncherWidget instance={instance} />;
     case 'appShortcut':

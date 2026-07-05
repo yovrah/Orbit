@@ -24,6 +24,8 @@ interface HomeGridProps {
   onResize: (id: string, size: WidgetSize) => void;
   onConfigure: (id: string) => void;
   onNavigateStream: () => void;
+  onNavigateTransfer: () => void;
+  onNavigateMouse: () => void;
   onPowerOn: () => void;
 }
 
@@ -39,6 +41,8 @@ export function HomeGrid({
   onResize,
   onConfigure,
   onNavigateStream,
+  onNavigateTransfer,
+  onNavigateMouse,
   onPowerOn,
 }: HomeGridProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -149,6 +153,8 @@ export function HomeGrid({
               instance={w}
               editing={editing}
               onNavigateStream={onNavigateStream}
+              onNavigateTransfer={onNavigateTransfer}
+              onNavigateMouse={onNavigateMouse}
               onPowerOn={onPowerOn}
             />
           </motion.div>

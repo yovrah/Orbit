@@ -10,6 +10,8 @@ import {
   Mouse,
   Wand2,
   AppWindow,
+  Radio,
+  CircleDot,
 } from 'lucide-react';
 import type { WidgetInstance, WidgetMeta } from './types';
 
@@ -114,19 +116,38 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     allowedSizes: ['1x1', '2x1'],
     singleton: false,
   },
+  {
+    type: 'connectivity',
+    label: 'Connectivity',
+    description: 'Wi-Fi, Bluetooth, Airplane mode, and Transfer',
+    icon: Radio,
+    defaultSize: '1x2',
+    allowedSizes: ['1x2'],
+    singleton: true,
+  },
+  {
+    type: 'circleShortcut',
+    label: 'Circle Shortcut',
+    description: 'Circular quick action button (1x1)',
+    icon: CircleDot,
+    defaultSize: '1x1',
+    allowedSizes: ['1x1'],
+    singleton: false,
+    configurable: true,
+  },
 ];
 
 export function getWidgetMeta(type: WidgetInstance['type']): WidgetMeta | undefined {
   return WIDGET_CATALOG.find((w) => w.type === type);
 }
 
-/** First-run layout: Quick Actions on top, then a half-tall trackpad beside the
- * two narrow sliders, and a full-width Clipboard row — matches the showcase
- * design and packs cleanly with no gaps. */
+/** First-run layout: Connectivity, volume, brightness, media and circle shortcuts */
 export const DEFAULT_LAYOUT: WidgetInstance[] = [
-  { id: 'default-quick-actions', type: 'quickActions', size: '2x2' },
-  { id: 'default-trackpad', type: 'trackpad', size: '1x2' },
+  { id: 'default-connectivity', type: 'connectivity', size: '1x2' },
   { id: 'default-volume', type: 'volume', size: 'slim' },
   { id: 'default-brightness', type: 'brightness', size: 'slim' },
-  { id: 'default-clipboard', type: 'clipboard', size: '2x1' },
+  { id: 'default-media', type: 'mediaControls', size: '2x1' },
+  { id: 'default-lock', type: 'circleShortcut', size: '1x1', config: { action: 'lock' } },
+  { id: 'default-screenshot', type: 'circleShortcut', size: '1x1', config: { action: 'screenshot' } },
+  { id: 'default-trackpad', type: 'trackpad', size: '2x2' },
 ];
