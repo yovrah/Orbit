@@ -304,7 +304,7 @@ export function SettingsSheet({ onClose, onOpenPairing, onOpenTool }: SettingsSh
             <div className="set-row">
               <span className="r-ico"><Info size={17} /></span>
               <span className="r-name">About Orbit</span>
-              <span className="r-val">v{agent?.version ?? '1.0.4'}</span>
+              <span className="r-val">v{agent?.version ?? '1.0.5'}</span>
             </div>
             {agent?.update && (
               <button

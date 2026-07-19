@@ -43,12 +43,34 @@ jobs:
         working-directory: agent
         run: pyinstaller --clean --noconfirm orbit.spec
 
-      - name: Zip release
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        working-directory: agent
+        run: |
+          # version.py is the single source of truth, so the installer can't
+          # disagree with what the running agent reports.
+          $version = (Select-String -Path src/version.py -Pattern '__version__\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          Write-Host "Building Orbit-Setup.exe for version $version"
+          # ISCC lands in Program Files on the runners but in %LOCALAPPDATA% for
+          # a user-scope install, so check every plausible home before giving up.
+          $iscc = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source }
+          if (-not $iscc) { throw "Inno Setup (ISCC.exe) not found on this runner" }
+          & $iscc "/DAppVersion=$version" installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+
+      - name: Zip portable build
         shell: pwsh
         run: Compress-Archive -Path agent/dist/Orbit/* -DestinationPath Orbit-windows.zip
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: Orbit-windows.zip
+          files: |
+            agent/installer_output/Orbit-Setup.exe
+            Orbit-windows.zip
           generate_release_notes: true

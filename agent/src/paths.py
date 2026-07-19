@@ -28,14 +28,27 @@ def resource_path(rel: str) -> str:
 
 
 def app_dir() -> str:
-    """Folder for writable, per-install files (logs). Next to the .exe when
-    frozen so users can find their logs; the agent folder from source."""
+    """Folder for writable, per-install files (logs).
+
+    Installed builds live in Program Files, which a standard user cannot write
+    to, so writable state goes to %LOCALAPPDATA%\\Orbit rather than next to the
+    .exe. (The SQLite DB has its own %APPDATA%\\Orbit\\config home.)
+    """
     if IS_FROZEN:
-        return os.path.dirname(sys.executable)
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "Orbit")
     return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 
 def logs_dir() -> str:
+    """Never raises: the windowed exe opens its log file at import time, so a
+    failure here would kill the app before it could report anything."""
     path = os.path.join(app_dir(), "logs")
-    os.makedirs(path, exist_ok=True)
-    return path
+    try:
+        os.makedirs(path, exist_ok=True)
+        return path
+    except OSError:
+        import tempfile
+        fallback = os.path.join(tempfile.gettempdir(), "Orbit", "logs")
+        os.makedirs(fallback, exist_ok=True)
+        return fallback

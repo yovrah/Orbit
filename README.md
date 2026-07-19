@@ -55,15 +55,18 @@ volume, power actions and more. Runs as a PWA on your phone, no app store needed
 - The **PWA** is a React app you open once in the phone browser and add to your home screen. It talks to the agent directly over your local network.
 - Pairing is a **QR code**: the tray app shows it, the phone camera scans it, done. Every request after that is signed with HMAC-SHA256 using a per-device shared secret.
 
-## Download & run (no install)
+## Download & install
 
-The easiest way — **no Python, no Node, nothing to install**:
+No Python, no Node, nothing to set up:
 
-1. Grab the latest **`Orbit-windows.zip`** from the [**Releases**](https://github.com/yovrah/orbit/releases) page.
-2. Unzip it anywhere and double-click **`Orbit.exe`**.
-3. The Orbit icon appears in your system tray and a window pops up with a **QR code**.
-4. Point your phone camera at the QR — it opens Orbit and connects automatically.
-5. Add it to your home screen so it feels native: **iOS** Share → *Add to Home Screen*; **Android** ⋮ → *Add to Home screen*.
+1. Download **`Orbit-Setup.exe`** from the [**Releases**](https://github.com/yovrah/orbit/releases) page and run it. It installs to *Program Files* and adds Orbit to the Start menu.
+2. Orbit starts, its icon appears in your system tray and a window pops up with a **QR code**.
+3. Point your phone camera at the QR — it opens Orbit and connects automatically.
+4. Add it to your home screen so it feels native: **iOS** Share → *Add to Home Screen*; **Android** ⋮ → *Add to Home screen*.
+
+Installing again over an existing copy upgrades it in place and keeps your paired phones. Uninstall from *Settings → Apps* like any other program.
+
+**Prefer no installer?** `Orbit-windows.zip` on the same page is the portable build — unzip anywhere and run `Orbit.exe`. It keeps its files in a folder called `_internal`; leave that next to the .exe.
 
 Tray menu: **Show connection QR** · **Open Orbit in browser** · **Start with Windows** · **Quit Orbit**.
 
