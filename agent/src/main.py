@@ -45,6 +45,8 @@ def get_soundcard():
             _soundcard = None
     return _soundcard
 
+from version import __version__
+import updates
 from db.database import init_db
 from db import models
 from db import scenario_models
@@ -89,7 +91,7 @@ async def lifespan(app: FastAPI):
 
         print_qr_code(pair_url, local_url, hostname_url)
 
-        desc = {'os': 'Windows', 'version': '1.0.3', 'path': '/api/v1'}
+        desc = {'os': 'Windows', 'version': __version__, 'path': '/api/v1'}
         info = ServiceInfo(
             "_orbit-control._tcp.local.",
             f"{hostname}._orbit-control._tcp.local.",
@@ -113,7 +115,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Error closing mDNS: {e}")
 
-app = FastAPI(title="Orbit Remote Agent", version="1.0.3", lifespan=lifespan)
+app = FastAPI(title="Orbit Remote Agent", version=__version__, lifespan=lifespan)
 
 # The phone app pairs with (and switches between) multiple PCs from a single
 # installed PWA, which stays pinned to whichever PC's origin it was first
@@ -330,9 +332,11 @@ def ping():
         "status": "online",
         "agent_name": platform.node() or "My PC",
         "os": f"{platform.system()} {platform.release()}",
-        "version": "1.0.3",
+        "version": __version__,
         "paired": False,
-        "mac_address": get_mac_address()
+        "mac_address": get_mac_address(),
+        # Populated by the background update check; None until one is found.
+        "update": updates.LATEST,
     }
 
 # Short-lived PIN sessions: expire after PIN_TTL and lock after PIN_MAX_TRIES

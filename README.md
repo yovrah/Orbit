@@ -65,9 +65,13 @@ The easiest way — **no Python, no Node, nothing to install**:
 4. Point your phone camera at the QR — it opens Orbit and connects automatically.
 5. Add it to your home screen so it feels native: **iOS** Share → *Add to Home Screen*; **Android** ⋮ → *Add to Home screen*.
 
-Tray menu: **Show connection QR** · **Open Orbit in browser** · **Quit Orbit**.
+Tray menu: **Show connection QR** · **Open Orbit in browser** · **Start with Windows** · **Quit Orbit**.
+
+Tick **Start with Windows** and the agent comes back on its own after a reboot, so your phone reconnects without you touching the PC. Orbit also checks GitHub for new releases once in a while and quietly adds an **Update available** item to the tray menu — it never downloads or installs anything by itself.
 
 > **First launch shows a blue Windows SmartScreen warning** ("Windows protected your PC"). That's normal for small free apps that aren't code-signed — click **More info → Run anyway**. The code is fully open here if you'd rather build it yourself.
+
+> **Antivirus false positives.** Orbit moves your mouse, types keys and captures the screen on request — the same things remote-access malware does, so scanners occasionally flag it (usually as a generic `Wacatac`-style heuristic). Nothing here phones home: the agent talks only to your own phone on your own Wi-Fi, plus GitHub for the update check. Build it from source below if you'd rather trust your own binary.
 
 ## Build from source (developers)
 

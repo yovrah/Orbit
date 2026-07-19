@@ -24,8 +24,35 @@ if sys.stdout is None or sys.stderr is None:
     sys.stderr = sys.stderr or _log
 
 import main  # noqa: E402  (the FastAPI app + pairing state)
+import autostart  # noqa: E402
+import updates  # noqa: E402
+from version import GITHUB_REPO, __version__  # noqa: E402
 
 PORT = 23810
+
+# Held for the lifetime of the process — releasing or garbage-collecting this
+# would let a second copy start.
+_MUTEX_HANDLE = None
+
+
+def acquire_single_instance() -> bool:
+    """True if we are the only Orbit agent. A named mutex settles the race that
+    the port check can't: two copies launched together (autostart at logon plus
+    a manual double-click) both see a free port, and the loser dies binding it."""
+    global _MUTEX_HANDLE
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.CreateMutexW(None, True, "Global\\Orbit_Agent_SingleInstance")
+        if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+            kernel32.CloseHandle(handle)
+            return False
+        _MUTEX_HANDLE = handle
+        return True
+    except Exception as e:
+        # Never let the guard itself block a legitimate launch.
+        print(f"Single-instance check unavailable: {e!r}")
+        return True
 
 DARK_BG = "#0b0d13"
 CARD_BG = "#151822"
@@ -242,10 +269,10 @@ def run_server() -> "uvicorn.Server":
 
 
 def main_tray():
-    if is_port_in_use(PORT):
+    if not acquire_single_instance() or is_port_in_use(PORT):
         import ctypes
         ctypes.windll.user32.MessageBoxW(
-            0, "Orbit Agent is already running (port 23810 is busy).\n"
+            0, "Orbit Agent is already running.\n"
                "Look for the Orbit icon in the system tray.",
             "Orbit Agent", 0x00000030 | 0x00010000)
         return
@@ -285,6 +312,14 @@ def main_tray():
     def on_open_browser(icon, item):
         webbrowser.open(f"http://127.0.0.1:{PORT}/")
 
+    def on_toggle_autostart(icon, item):
+        autostart.toggle()
+        icon.update_menu()
+
+    def on_get_update(icon, item):
+        info = updates.LATEST
+        webbrowser.open(info["url"] if info else f"https://github.com/{GITHUB_REPO}/releases/latest")
+
     def on_quit(icon, item):
         server.should_exit = True
         qr_window.destroy()
@@ -293,14 +328,41 @@ def main_tray():
     icon = pystray.Icon(
         "orbit-agent",
         icon=load_logo(),
-        title="Orbit Agent — phone remote control",
+        title=f"Orbit Agent v{__version__} — phone remote control",
         menu=pystray.Menu(
+            # Only rendered once a newer release is actually found.
+            # The label must stay None-safe: pystray may evaluate the text of a
+            # hidden item, and LATEST is None for the whole time no update
+            # exists (i.e. almost always).
+            pystray.MenuItem(
+                lambda item: f"Update available — v{(updates.LATEST or {}).get('version', '')}",
+                on_get_update,
+                visible=lambda item: updates.LATEST is not None,
+            ),
             pystray.MenuItem("Show connection QR", on_show_qr, default=True),
             pystray.MenuItem("Open Orbit in browser", on_open_browser),
+            pystray.MenuItem(
+                "Start with Windows",
+                on_toggle_autostart,
+                checked=lambda item: autostart.is_enabled(),
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit Orbit", on_quit),
         ),
     )
+
+    def announce_update(info):
+        icon.update_menu()
+        try:
+            icon.notify(
+                f"Orbit {info['version']} is available. Open the tray menu to download it.",
+                "Update available",
+            )
+        except Exception as e:
+            print(f"Update notification unavailable: {e!r}")
+
+    updates.start(on_update=announce_update)
+
     icon.run()
 
 

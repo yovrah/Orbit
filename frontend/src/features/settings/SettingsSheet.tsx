@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   X,
+  ArrowUpCircle,
   Moon,
   Sun,
   Plus,
@@ -26,6 +28,14 @@ interface SettingsSheetProps {
   onClose: () => void;
   onOpenPairing: () => void;
   onOpenTool: (tool: ToolId) => void;
+}
+
+/** What the PC agent reports about itself — the version shown here is the
+ * agent's own, not a constant baked into the phone bundle, so the two can
+ * never disagree. `update` is set once the agent finds a newer release. */
+interface AgentInfo {
+  version?: string;
+  update?: { version: string; url: string; name?: string } | null;
 }
 
 function isStandaloneApp(): boolean {
@@ -64,6 +74,24 @@ export function SettingsSheet({ onClose, onOpenPairing, onOpenTool }: SettingsSh
     request,
   } = useOrbit();
   const { theme, sensitivity, scrollSensitivity } = settings;
+
+  const [agent, setAgent] = useState<AgentInfo | null>(null);
+
+  useEffect(() => {
+    if (!isConnected || !isAuthorized) return;
+    let cancelled = false;
+    request('/api/v1/ping')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setAgent(data);
+      })
+      .catch(() => {
+        /* Settings still works fine without it. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isConnected, isAuthorized, request]);
 
   const isOnline = (d: Device) => d.uuid === activeDevice?.uuid && isConnected && isAuthorized;
 
@@ -276,8 +304,24 @@ export function SettingsSheet({ onClose, onOpenPairing, onOpenTool }: SettingsSh
             <div className="set-row">
               <span className="r-ico"><Info size={17} /></span>
               <span className="r-name">About Orbit</span>
-              <span className="r-val">v1.0.3</span>
+              <span className="r-val">v{agent?.version ?? '1.0.4'}</span>
             </div>
+            {agent?.update && (
+              <button
+                type="button"
+                className="set-row"
+                onClick={() => window.open(agent.update!.url, '_blank', 'noopener')}
+              >
+                <span className="r-ico" style={{ color: '#34c759' }}><ArrowUpCircle size={17} /></span>
+                {/* Names the PC agent explicitly: the download is a Windows
+                    build, so tapping this on the phone opens release notes to
+                    read, not something installable here. */}
+                <span className="r-name">PC agent update</span>
+                <span className="r-val" style={{ color: '#34c759' }}>
+                  v{agent.update.version} <ChevronRight size={14} className="inline -mt-0.5" />
+                </span>
+              </button>
+            )}
             {!isStandaloneApp() && (
               <button
                 type="button"
